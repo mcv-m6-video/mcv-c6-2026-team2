@@ -1,5 +1,6 @@
 import argparse
 from task1 import run_task1
+from utils import create_detection_gif
 
 def main():
 
@@ -18,16 +19,28 @@ def main():
     parser.add_argument("--open_size", type=int, default=3)
     parser.add_argument("--close_size", type=int, default=7)
 
+    parser.add_argument("--gif", action="store_true", help="Generate detection GIF at the end")
+
     args = parser.parse_args()
 
     if args.task == "task1":
-        run_task1(args)
+        test_frames, all_boxes, gt_dict, train_end = run_task1(args)
 
     elif args.task == "task2":
         print("Task2 not implemented yet")
 
     else:
         raise ValueError("Unknown task")
+
+    if args.gif:
+        create_detection_gif(
+            test_frames=test_frames, 
+            all_pred_boxes=all_boxes, 
+            gt_per_frame=gt_dict, 
+            train_end=train_end,
+            output_path=f"outputs/detections_alpha_{args.alpha}.gif",
+            max_frames=100
+        )
 
 if __name__ == "__main__":
     main()

@@ -344,3 +344,5 @@ def run_task1(args):
     ap50 = evaluate_coco(gt_json, pred_json)
 
     print(f"\nFinal AP50: {ap50:.4f}")
+
+    return test, all_boxes, gt, train_end
