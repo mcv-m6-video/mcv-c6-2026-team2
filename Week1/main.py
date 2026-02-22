@@ -13,6 +13,9 @@ def main():
 
     parser.add_argument("--annotations", type=str, required=True,
                         help="Path to XML annotations")
+    
+    parser.add_argument("--dataset", type=str, default='dataset')
+    parser.add_argument("--train_ratio", type=float, default=0.25)
 
     parser.add_argument("--alpha", type=float, default=3.0)
     parser.add_argument("--min_area", type=int, default=1500)
