@@ -43,7 +43,7 @@ def segment_and_detect(test_frames, mu, sigma, roi, rho, args):
 
     return all_pred_boxes
 
-def run_task2(args, preloaded_data=None):
+def run_task2(args):
     """
     Task 2: Adaptive Background Estimation using a Recursive Gaussian Model.
     The background parameters (mean and variance) are updated for pixels 
@@ -51,21 +51,18 @@ def run_task2(args, preloaded_data=None):
     """
     print(f"Running Task 2: Adaptive Gaussian (alpha={args.alpha}, rho={args.rho}) ---")
 
-    if preloaded_data is None:
-        frames = load_video_frames(args.video)
-        N = len(frames)
-        train_end = int(0.25 * N)
-        train = frames[:train_end]
-        test = frames[train_end:]
-        mu = np.mean(train, axis=0)
-        sigma = np.std(train, axis=0)
-        roi = cv2.imread(
-            args.video.replace("vdo.avi", "roi.jpg"),
-            cv2.IMREAD_GRAYSCALE
-        )
-        roi = roi > 0
-    else:
-        test, mu, sigma, roi, gt, train_end = preloaded_data
+    frames = load_video_frames(args.video)
+    N = len(frames)
+    train_end = int(0.25 * N)
+    train = frames[:train_end]
+    test = frames[train_end:]
+    mu = np.mean(train, axis=0)
+    sigma = np.std(train, axis=0)
+    roi = cv2.imread(
+        args.video.replace("vdo.avi", "roi.jpg"),
+        cv2.IMREAD_GRAYSCALE
+    )
+    roi = roi > 0
 
     all_pred_boxes = segment_and_detect(test, mu, sigma, roi, args.rho, args)
 
