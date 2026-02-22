@@ -1,5 +1,5 @@
 import argparse
-from task1 import run_task1
+from task1.task1 import run_task1
 from utils import create_detection_gif
 
 def main():
@@ -38,7 +38,7 @@ def main():
             all_pred_boxes=all_boxes, 
             gt_per_frame=gt_dict, 
             train_end=train_end,
-            output_path=f"outputs/detections_alpha_{args.alpha}.gif",
+            output_path=f"{args.task}/outputs/detections_alpha_{args.alpha}.gif",
             max_frames=100
         )
 
