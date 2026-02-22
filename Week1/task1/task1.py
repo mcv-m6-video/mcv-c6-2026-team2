@@ -285,6 +285,39 @@ def evaluate_coco(gt_json, pred_json):
 
     return coco_eval.stats[1]
 
+# --------------------------------------------------
+# Core segmentation engine
+# --------------------------------------------------
+
+def segment_and_detect(test_frames, mu, sigma, roi, args):
+    all_pred_boxes = []
+    
+    current_mu = mu.copy()
+    current_sigma = sigma.copy()
+
+    kernel_open = np.ones((args.open_size, args.open_size), np.uint8)
+    kernel_close = np.ones((args.close_size, args.close_size), np.uint8)
+    kernel_dilate = np.ones((5, 5), np.uint8)
+
+    for frame in test_frames:
+
+        diff = np.abs(frame - current_mu)
+        sigma_safe = np.maximum(current_sigma, 1e-6)
+
+        mask_bool = (diff >= args.alpha * (sigma_safe + 2)) & roi
+        mask_uint8 = mask_bool.astype(np.uint8) * 255
+
+        mask_proc = cv2.morphologyEx(mask_uint8, cv2.MORPH_OPEN, kernel_open)
+        mask_proc = cv2.morphologyEx(mask_proc, cv2.MORPH_CLOSE, kernel_close)
+        mask_proc = cv2.dilate(mask_proc, kernel_dilate, iterations=1)
+
+        boxes = get_bounding_boxes(mask_proc, args.min_area)
+        boxes = remove_nested_boxes(boxes)
+        boxes = merge_overlapping_boxes(boxes)
+        all_pred_boxes.append(boxes)
+
+    return all_pred_boxes
+
 
 # --------------------------------------------------
 # Task 1 Runner (MATCHES NOTEBOOK)
@@ -311,30 +344,7 @@ def run_task1(args):
     )
     roi = roi > 0
 
-    all_boxes = []
-
-    kernel_open = np.ones((args.open_size, args.open_size), np.uint8)
-    kernel_close = np.ones((args.close_size, args.close_size), np.uint8)
-    kernel_dilate = np.ones((5,5), np.uint8)
-
-    for frame in test:
-
-        diff = np.abs(frame - mu)
-        sigma_safe = np.maximum(sigma, 1e-6)
-
-        mask = diff >= args.alpha * (sigma_safe + 2)
-        mask = mask & roi
-        mask = mask.astype(np.uint8) * 255
-
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_open)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_close)
-        mask = cv2.dilate(mask, kernel_dilate, iterations=1)
-
-        boxes = get_bounding_boxes(mask, args.min_area)
-        boxes = remove_nested_boxes(boxes)
-        boxes = merge_overlapping_boxes(boxes)
-
-        all_boxes.append(boxes)
+    all_boxes = segment_and_detect(test, mu, sigma, roi, args)
 
     gt = load_ground_truth(args.annotations)
 
