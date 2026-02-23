@@ -1,0 +1,8 @@
+task: task2
+video: Data/AICity_data/train/S03/c010/vdo.avi
+annotations: Data/AICity_data/train/S03/c010/ai_challenge_s03_c010-full_annotation.xml
+
+alpha: [3]
+rho: [0.75, 0.50, 0.25, 0.1, 0.01, 0.001, 0.0001, 0.00001]
+
+gif: true
