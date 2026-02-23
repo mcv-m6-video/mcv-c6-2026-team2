@@ -1,7 +1,9 @@
 import cv2
+import csv
 import numpy as np
 from task1.task1 import load_video_frames, load_ground_truth, gt_to_coco, preds_to_coco, evaluate_coco, get_bounding_boxes, remove_nested_boxes, merge_overlapping_boxes
 from itertools import product
+import os
 
 def segment_and_detect(test_frames, mu, sigma, roi, alpha, rho, args):
     all_pred_boxes = []
@@ -52,40 +54,59 @@ def run_task2(args):
     classified as background to adapt to lighting changes.
     """
     print(f"Running Task 2: Adaptive Gaussian (alpha={args.alpha}, rho={args.rho}) ---")
+
+    frames = load_video_frames(args.video)
+    N = len(frames)
+    train_end = int(0.25 * N)
+    train = frames[:train_end]
+    test = frames[train_end:]
+    mu_init = np.mean(train, axis=0)
+    sigma_init = np.std(train, axis=0)
+    roi = cv2.imread(
+        args.video.replace("vdo.avi", "roi.jpg"),
+        cv2.IMREAD_GRAYSCALE
+    )
+    roi = roi > 0
+
+    gt_dict = load_ground_truth(args.annotations)
+    gt_json = gt_to_coco(gt_dict, train_end, len(test))
+
     best_alpha = None
     best_rho = None
+    best_boxes = None
     best_ap50 = -1
+    results_list = []
 
     for alpha, rho in product(args.alpha, args.rho):
-        frames = load_video_frames(args.video)
-        N = len(frames)
-        train_end = int(0.25 * N)
-        train = frames[:train_end]
-        test = frames[train_end:]
-        mu = np.mean(train, axis=0)
-        sigma = np.std(train, axis=0)
-        roi = cv2.imread(
-            args.video.replace("vdo.avi", "roi.jpg"),
-            cv2.IMREAD_GRAYSCALE
-        )
-        roi = roi > 0
+        print(f"Testing alpha={alpha}, rho={rho}...")
 
-        all_pred_boxes = segment_and_detect(test, mu, sigma, roi, alpha, rho, args)
+        all_pred_boxes = segment_and_detect(test, mu_init, sigma_init, roi, alpha, rho, args)
 
-        gt_dict = load_ground_truth(args.annotations)
-        
-        gt_json = gt_to_coco(gt_dict, train_end, len(test))
         pred_json = preds_to_coco(all_pred_boxes, train_end)
 
         ap50 = evaluate_coco(gt_json, pred_json)
+
+        results_list.append({'alpha': alpha, 'rho': rho, 'ap50': ap50})
 
         if ap50 > best_ap50:
             best_ap50 = ap50
             best_alpha = alpha
             best_rho = rho
+            best_boxes = all_pred_boxes
+
+    output_dir = f"{args.task}/results"
+    os.makedirs(output_dir, exist_ok=True)
+    csv_path = os.path.join(output_dir, f"{os.path.basename(args.config).split('.')[0]}.csv")
+
+    with open(csv_path, mode='w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=['alpha', 'rho', 'ap50'])
+        writer.writeheader()
+        writer.writerows(results_list)
+    
+    print(f"\nGrid Search Finished. Results saved to: {csv_path}")
 
     print(f"\nFinal Adaptive AP50: {best_ap50:.4f}")
     print(f"\nFinal Alpha: {best_alpha:.4f}")
     print(f"\nFinal Rho: {best_rho:.4f}")
 
-    return test, all_pred_boxes, gt_dict, train_end, best_alpha, best_rho
+    return test, best_boxes, gt_dict, train_end, best_alpha, best_rho
