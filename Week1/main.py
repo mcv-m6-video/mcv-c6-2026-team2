@@ -46,7 +46,7 @@ def main():
     assert args.annotations
 
     if args.task == "task1":
-        test_frames, all_boxes, gt_dict, train_end = run_task1(args)
+        test_frames, all_boxes, gt_dict, train_end, alpha = run_task1(args)
 
     elif args.task == "task2":
         test_frames, all_boxes, gt_dict, train_end, alpha, rho = run_task2(args)
@@ -60,7 +60,7 @@ def main():
             all_pred_boxes=all_boxes, 
             gt_per_frame=gt_dict, 
             train_end=train_end,
-            output_path=f"{args.task}/outputs/detections_alpha_{alpha}_{rho}.gif",
+            output_path=f"{args.task}/outputs/detections_alpha_{alpha}.gif",
             max_frames=100
         )
 

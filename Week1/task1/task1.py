@@ -4,6 +4,7 @@ import json
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 import xml.etree.ElementTree as ET
+import imageio
 
 
 # --------------------------------------------------
@@ -14,17 +15,20 @@ def load_video_frames(video_path):
 
     cap = cv2.VideoCapture(video_path)
     frames = []
+    frames_gray = []
+    frames_color = []
 
     while True:
         ret, frame = cap.read()
         if not ret:
             break
 
+        frames_color.append(frame.copy())
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        frames.append(gray.astype(np.float32))
+        frames_gray.append(gray.astype(np.float32))
 
     cap.release()
-    return np.array(frames)
+    return np.array(frames_gray), np.array(frames_color)
 
 
 # --------------------------------------------------
@@ -157,6 +161,40 @@ def merge_overlapping_boxes(boxes, iou_threshold=0.3):
 
     return merged
 
+def remove_shadows(frame_color, background_color, current_mask):
+    # Convert both current frame and background model to HSV color space
+    hsv_frame = cv2.cvtColor(frame_color, cv2.COLOR_BGR2HSV).astype(np.float32)
+    hsv_bg = cv2.cvtColor(background_color.astype(np.uint8), cv2.COLOR_BGR2HSV).astype(np.float32)
+    
+    # Hue (0), Saturation (1), Value/Brightness (2)
+    h_f, s_f, v_f = hsv_frame[:,:,0], hsv_frame[:,:,1], hsv_frame[:,:,2]
+    h_b, s_b, v_b = hsv_bg[:,:,0], hsv_bg[:,:,1], hsv_bg[:,:,2]
+    
+    # Thresholds based on Cucchiara et al. theory
+    # alpha: lower bound for brightness reduction
+    # beta: upper bound for brightness reduction
+    alpha, beta = 0.4, 0.9
+    # tau_s: maximum allowed change in Saturation
+    # tau_h: maximum allowed change in Hue
+    tau_s, tau_h = 50, 20   
+
+    # Calculate the Brightness ratio (Value) between frame and background
+    v_ratio = v_f / (v_b + 1e-6)
+    
+    # Shadow mask criteria:
+    # 1. Brightness decreases within the expected range (alpha < ratio < beta)
+    # 2. Saturation remains similar or slightly lower
+    # 3. Hue (chromaticity) remains similar to the background
+    shadow_mask = (v_ratio > alpha) & (v_ratio < beta) & \
+                  (np.abs(s_f - s_b) <= tau_s) & \
+                  (np.abs(h_f - h_b) <= tau_h)
+    
+    # Refine the original foreground mask: 
+    # If a pixel was marked as foreground but meets shadow criteria, set it to background (0)
+    cleaned_mask = current_mask.copy()
+    cleaned_mask[shadow_mask] = 0
+    
+    return cleaned_mask
 
 # --------------------------------------------------
 # Bounding boxes
@@ -289,24 +327,24 @@ def evaluate_coco(gt_json, pred_json):
 # Core segmentation engine
 # --------------------------------------------------
 
-def segment_and_detect(test_frames, mu, sigma, roi, args):
+def segment_and_detect(test_gray, test_color, mu_gray, sigma_gray, mu_color, roi, args):
     all_pred_boxes = []
-    
-    current_mu = mu.copy()
-    current_sigma = sigma.copy()
+
+    current_mu = mu_gray.copy()
+    current_sigma = sigma_gray.copy()
 
     kernel_open = np.ones((args.open_size, args.open_size), np.uint8)
     kernel_close = np.ones((args.close_size, args.close_size), np.uint8)
     kernel_dilate = np.ones((5, 5), np.uint8)
 
-    for frame in test_frames:
+    for i in range(len(test_gray)):
 
-        diff = np.abs(frame - current_mu)
+        diff = np.abs(test_gray[i] - current_mu)
         sigma_safe = np.maximum(current_sigma, 1e-6)
 
         mask_bool = (diff >= args.alpha * (sigma_safe + 2)) & roi
         mask_uint8 = mask_bool.astype(np.uint8) * 255
-
+        mask_uint8 = remove_shadows(test_color[i], mu_color, mask_uint8)
         mask_proc = cv2.morphologyEx(mask_uint8, cv2.MORPH_OPEN, kernel_open)
         mask_proc = cv2.morphologyEx(mask_proc, cv2.MORPH_CLOSE, kernel_close)
         mask_proc = cv2.dilate(mask_proc, kernel_dilate, iterations=1)
@@ -316,7 +354,7 @@ def segment_and_detect(test_frames, mu, sigma, roi, args):
         boxes = merge_overlapping_boxes(boxes)
         all_pred_boxes.append(boxes)
 
-    return all_pred_boxes
+    return all_pred_boxes 
 
 
 # --------------------------------------------------
@@ -327,16 +365,19 @@ def run_task1(args):
 
     print("Running Task 1")
 
-    frames = load_video_frames(args.video)
+    frames_gray, frames_color = load_video_frames(args.video)
 
-    N = len(frames)
+    N = len(frames_gray)
     train_end = int(0.25 * N)
 
-    train = frames[:train_end]
-    test = frames[train_end:]
+    train_gray = frames_gray[:train_end]
+    mu_gray = np.mean(train_gray, axis=0)
+    sigma_gray = np.std(train_gray, axis=0)
 
-    mu = np.mean(train, axis=0)
-    sigma = np.std(train, axis=0)
+    mu_color = np.mean(frames_color[:train_end], axis=0)
+
+    test_gray = frames_gray[train_end:]
+    test_color = frames_color[train_end:]
 
     roi = cv2.imread(
         args.video.replace("vdo.avi", "roi.jpg"),
@@ -344,15 +385,14 @@ def run_task1(args):
     )
     roi = roi > 0
 
-    all_boxes = segment_and_detect(test, mu, sigma, roi, args)
-
+    all_boxes  = segment_and_detect(test_gray, test_color, mu_gray, sigma_gray, mu_color, roi, args)
     gt = load_ground_truth(args.annotations)
 
-    gt_json = gt_to_coco(gt, train_end, len(test))
+    gt_json = gt_to_coco(gt, train_end, len(test_gray))
     pred_json = preds_to_coco(all_boxes, train_end)
 
     ap50 = evaluate_coco(gt_json, pred_json)
 
     print(f"\nFinal AP50: {ap50:.4f}")
 
-    return test, all_boxes, gt, train_end
+    return test_gray, all_boxes, gt, train_end, args.alpha
