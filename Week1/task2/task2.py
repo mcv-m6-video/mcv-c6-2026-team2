@@ -6,9 +6,9 @@ from itertools import product
 import os
 from tqdm import tqdm
 
-def segment_and_detect(frame_gray, frame_hsv, mean_gray, std_gray, mean_hsv, roi, alpha, rho, args):
-    kernel_open = np.ones((args.open_size, args.open_size), np.uint8)
-    kernel_close = np.ones((args.close_size, args.close_size), np.uint8)
+def segment_and_detect(frame_gray, frame_hsv, mean_gray, std_gray, mean_hsv, alpha, rho, open_size, close_size, min_area, roi):
+    kernel_open = np.ones((open_size, open_size), np.uint8)
+    kernel_close = np.ones((close_size, close_size), np.uint8)
     kernel_dilate = np.ones((5, 5), np.uint8)
 
     diff = np.abs(frame_gray - mean_gray)
@@ -20,7 +20,7 @@ def segment_and_detect(frame_gray, frame_hsv, mean_gray, std_gray, mean_hsv, roi
     mask_proc = cv2.morphologyEx(mask_proc, cv2.MORPH_CLOSE, kernel_close)
     mask_proc = cv2.dilate(mask_proc, kernel_dilate, iterations=1)
 
-    boxes = get_bounding_boxes(mask_proc, args.min_area)
+    boxes = get_bounding_boxes(mask_proc, min_area)
     boxes = remove_nested_boxes(boxes)
     boxes = merge_overlapping_boxes(boxes)
 
@@ -74,7 +74,7 @@ def run_task2(args):
     best_ap50 = -1
     results_list = [] if save_results else None
 
-    for alpha, rho in product(args.alpha, args.rho):
+    for alpha, rho, min_area, open_size, close_size in product(args.alpha, args.rho, args.min_area, args.open_size, args.close_size):
         print(f"Testing alpha={alpha}, rho={rho}...")
         video.reset()
         all_pred_boxes = []
@@ -95,7 +95,7 @@ def run_task2(args):
                 if idx == train_size:
                     std_gray = np.sqrt(std_gray / (train_size - 2))
                 
-                boxes, mean_gray, std_gray, mean_hsv = segment_and_detect(frame_gray, frame_hsv, mean_gray, std_gray, mean_hsv, roi, alpha, rho, args)
+                boxes, mean_gray, std_gray, mean_hsv = segment_and_detect(frame_gray, frame_hsv, mean_gray, std_gray, mean_hsv, alpha, rho, open_size, close_size, min_area, roi)
                 all_pred_boxes.append(boxes)
 
         pred_json = preds_to_coco(all_pred_boxes, train_size)
