@@ -58,7 +58,7 @@ def main():
         raise ValueError("Unknown task")
 
     if args.gif:
-        prefix = f"detections_{args.task}_"
+        prefix = f"detections_{args.task}"
         prefix = prefix + desc
         file_name = prefix + f"_ap50_{ap50:.04f}.mp4"
         output_folder = os.path.join(args.task, 'results', 'videos')
