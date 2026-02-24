@@ -93,7 +93,7 @@ def create_detection_gif(test_frames,
 
     print("GIF saved to:", output_path)
 
-def gif_selector(video_path, output_gif, start_second=None, start_frame=None, end_frame=None):
+def gif_selector(video_path, output_gif, start_second=None, start_frame=None, end_frame=None, opt=False):
     tmp_frame_path = 'tmp_frame.jpg'
     cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS)
@@ -154,7 +154,9 @@ def gif_selector(video_path, output_gif, start_second=None, start_frame=None, en
     
     if len(gif) > 0:
         imageio.mimsave(output_gif, gif, loop=0)
-        optimize(output_gif)
+        if opt:
+            print("Optimizing gif...")
+            optimize(output_gif)
     
     if os.path.exists(tmp_frame_path):
         os.remove(tmp_frame_path)
@@ -170,8 +172,9 @@ if __name__ == '__main__':
     parser.add_argument('--start_second', type=int, default=None)
     parser.add_argument('--start_frame', type=int, default=None)
     parser.add_argument('--end_frame', type=int, default=None)
+    parser.add_argument('--opt', action='store_true')
     args = parser.parse_args()
 
     assert args.start_second is not None or args.start_frame is not None, f"Must use start_second or start_frame. Now they are {args.start_second} and {args.start_frame}"
-    gif_selector(args.video_path, args.output_path, start_second=args.start_second, start_frame=args.start_frame, end_frame=args.end_frame)
+    gif_selector(args.video_path, args.output_path, start_second=args.start_second, start_frame=args.start_frame, end_frame=args.end_frame, opt=args.opt)
     
