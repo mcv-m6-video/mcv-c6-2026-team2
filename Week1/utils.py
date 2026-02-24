@@ -8,13 +8,14 @@ def create_detection_video(video_path,
                          all_pred_boxes,
                          gt_per_frame,
                          train_size,
-                         output_path="detections.avi"):
+                         output_path="detections.mp4"):
     
     cap_read = cv2.VideoCapture(video_path)
     fps = cap_read.get(cv2.CAP_PROP_FPS)
     size = (int(cap_read.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap_read.get(cv2.CAP_PROP_FRAME_HEIGHT)))
     num_frames = int(cap_read.get(cv2.CAP_PROP_FRAME_COUNT))
-    fourcc = int(cap_read.get(cv2.CAP_PROP_FOURCC))
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    # fourcc = int(cap_read.get(cv2.CAP_PROP_FOURCC))
 
     cap_write = cv2.VideoWriter(output_path, fourcc, fps, size)
     print("Generating Annotated Video...")
@@ -44,8 +45,6 @@ def create_detection_video(video_path,
     
     cap_write.release()
     cap_read.release()
-
-
     
 
 def create_detection_gif(test_frames,

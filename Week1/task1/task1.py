@@ -5,30 +5,39 @@ from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 import xml.etree.ElementTree as ET
 import imageio
+from tqdm import tqdm
 
 
 # --------------------------------------------------
 # Video loading
 # --------------------------------------------------
 
-def load_video_frames(video_path):
+class Video:
+    def __init__(self, video_path):
+        self.video_path = video_path
+        self.cap = None
+        self.reset()
 
-    cap = cv2.VideoCapture(video_path)
-    frames = []
-    frames_gray = []
-    frames_color = []
+    def get_next_frame(self):
+        for _ in range(self.num_frames):
+            ret, frame = self.cap.read()
+            if not ret:
+                break
+            
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+            yield np.astype(gray, np.float32), np.astype(hsv, np.float32)
+        
+    def close(self):
+        self.cap.release()
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        frames_color.append(frame.copy())
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        frames_gray.append(gray.astype(np.float32))
-
-    cap.release()
-    return np.array(frames_gray), np.array(frames_color)
+    def reset(self):
+        if self.cap:
+            self.close()
+        self.cap = cv2.VideoCapture(self.video_path)
+        self.num_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 
 
 # --------------------------------------------------
@@ -163,8 +172,8 @@ def merge_overlapping_boxes(boxes, iou_threshold=0.3):
 
 def remove_shadows(frame_color, background_color, current_mask):
     # Convert both current frame and background model to HSV color space
-    hsv_frame = cv2.cvtColor(frame_color, cv2.COLOR_BGR2HSV).astype(np.float32)
-    hsv_bg = cv2.cvtColor(background_color.astype(np.uint8), cv2.COLOR_BGR2HSV).astype(np.float32)
+    hsv_frame = frame_color
+    hsv_bg = background_color
     
     # Hue (0), Saturation (1), Value/Brightness (2)
     h_f, s_f, v_f = hsv_frame[:,:,0], hsv_frame[:,:,1], hsv_frame[:,:,2]
@@ -327,34 +336,24 @@ def evaluate_coco(gt_json, pred_json):
 # Core segmentation engine
 # --------------------------------------------------
 
-def segment_and_detect(test_gray, test_color, mu_gray, sigma_gray, mu_color, roi, args):
-    all_pred_boxes = []
-
-    current_mu = mu_gray.copy()
-    current_sigma = sigma_gray.copy()
-
+def segment_and_detect(frame_gray, frame_hsv, mean_gray, std_gray, mean_hsv, roi, args):
     kernel_open = np.ones((args.open_size, args.open_size), np.uint8)
     kernel_close = np.ones((args.close_size, args.close_size), np.uint8)
     kernel_dilate = np.ones((5, 5), np.uint8)
 
-    for i in range(len(test_gray)):
+    diff = np.abs(frame_gray - mean_gray)
 
-        diff = np.abs(test_gray[i] - current_mu)
-        sigma_safe = np.maximum(current_sigma, 1e-6)
+    mask_bool = (diff >= args.alpha * (std_gray + 2)) & roi
+    mask_uint8 = mask_bool.astype(np.uint8) * 255
+    mask_uint8 = remove_shadows(frame_hsv, mean_hsv, mask_uint8)
+    mask_proc = cv2.morphologyEx(mask_uint8, cv2.MORPH_OPEN, kernel_open)
+    mask_proc = cv2.morphologyEx(mask_proc, cv2.MORPH_CLOSE, kernel_close)
+    mask_proc = cv2.dilate(mask_proc, kernel_dilate, iterations=1)
 
-        mask_bool = (diff >= args.alpha * (sigma_safe + 2)) & roi
-        mask_uint8 = mask_bool.astype(np.uint8) * 255
-        mask_uint8 = remove_shadows(test_color[i], mu_color, mask_uint8)
-        mask_proc = cv2.morphologyEx(mask_uint8, cv2.MORPH_OPEN, kernel_open)
-        mask_proc = cv2.morphologyEx(mask_proc, cv2.MORPH_CLOSE, kernel_close)
-        mask_proc = cv2.dilate(mask_proc, kernel_dilate, iterations=1)
-
-        boxes = get_bounding_boxes(mask_proc, args.min_area)
-        boxes = remove_nested_boxes(boxes)
-        boxes = merge_overlapping_boxes(boxes)
-        all_pred_boxes.append(boxes)
-
-    return all_pred_boxes 
+    boxes = get_bounding_boxes(mask_proc, args.min_area)
+    boxes = remove_nested_boxes(boxes)
+    boxes = merge_overlapping_boxes(boxes)
+    return boxes
 
 
 # --------------------------------------------------
@@ -362,37 +361,48 @@ def segment_and_detect(test_gray, test_color, mu_gray, sigma_gray, mu_color, roi
 # --------------------------------------------------
 
 def run_task1(args):
-
     print("Running Task 1")
-
-    frames_gray, frames_color = load_video_frames(args.video)
-
-    N = len(frames_gray)
-    train_end = int(0.25 * N)
-
-    train_gray = frames_gray[:train_end]
-    mu_gray = np.mean(train_gray, axis=0)
-    sigma_gray = np.std(train_gray, axis=0)
-
-    mu_color = np.mean(frames_color[:train_end], axis=0)
-
-    test_gray = frames_gray[train_end:]
-    test_color = frames_color[train_end:]
-
+    video = Video(args.video)
+    train_size = int(video.num_frames * 0.25)
+    mean_gray = None
+    prev_mean_gray = None
+    mean_hsv = None
+    std_gray = None
     roi = cv2.imread(
         args.video.replace("vdo.avi", "roi.jpg"),
         cv2.IMREAD_GRAYSCALE
     )
     roi = roi > 0
+    all_boxes = []
+    
+    for idx, (frame_gray, frame_hsv) in tqdm(enumerate(video.get_next_frame()), total=video.num_frames):
+        if idx < train_size:
+            if idx == 0:
+                mean_gray = frame_gray
+                std_gray = np.zeros_like(mean_gray)
+                prev_mean_gray = mean_gray
+                mean_hsv = frame_hsv
+            else:
+                mean_gray = prev_mean_gray + (frame_gray - prev_mean_gray) / idx
+                std_gray = std_gray + (frame_gray - prev_mean_gray) * (frame_gray - mean_gray)
+                prev_mean_gray = mean_gray
+                mean_hsv = mean_hsv + (frame_hsv - mean_hsv) / idx
+        else:
+            if idx == train_size:
+                std_gray = np.sqrt(std_gray / (train_size - 2))
+            
+            boxes = segment_and_detect(frame_gray, frame_hsv, mean_gray, std_gray, mean_hsv, roi, args)
+            all_boxes.append(boxes)
 
-    all_boxes  = segment_and_detect(test_gray, test_color, mu_gray, sigma_gray, mu_color, roi, args)
+    print(f"{len(all_boxes)}")
     gt = load_ground_truth(args.annotations)
-
-    gt_json = gt_to_coco(gt, train_end, len(test_gray))
-    pred_json = preds_to_coco(all_boxes, train_end)
-
+    gt_json = gt_to_coco(gt, train_size, video.num_frames - train_size)
+    pred_json = preds_to_coco(all_boxes, train_size)
+    
     ap50 = evaluate_coco(gt_json, pred_json)
 
     print(f"\nFinal AP50: {ap50:.4f}")
 
-    return test_gray, all_boxes, gt, train_end, args.alpha
+    video.close()
+
+    return all_boxes, gt, train_size, ap50

@@ -1,6 +1,6 @@
 import argparse
-from task1.task1_iterative import run_task1
-from task2.task2_iterative import run_task2
+from task1.task1 import run_task1
+from task2.task2 import run_task2
 from utils import create_detection_gif, create_detection_video
 import yaml
 import os
@@ -63,10 +63,10 @@ def main():
         if best_alpha is not None and best_rho is not None:
             desc = f"_a{best_alpha}_r{best_rho}"
             prefix = prefix + desc
-        file_name = prefix + f"_ap50_{ap50:.04f}.avi"
+        file_name = prefix + f"_ap50_{ap50:.04f}.mp4"
         output_folder = os.path.join(args.task, 'results', 'videos')
         os.makedirs(output_folder, exist_ok=True)
-        
+
         output_path = os.path.join(args.task, 'results', 'videos', file_name)
         
         create_detection_video(
