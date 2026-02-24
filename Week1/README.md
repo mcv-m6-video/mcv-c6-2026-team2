@@ -38,14 +38,24 @@ The Week1 directory is organized as follows:
 
 ```
 Week1/
-│
 ├── src/
 │   ├── main.py         # Entry point of Week 1
 │   ├── utils.py        # Shared helper functions used across tasks
+│   ├── config/         # Config files 
 │   ├── task1/          # Code for Task 1
 │   ├── task2/          # Code for Task 2
 │   └── task3/          # Code for Task 3 
+├── environment.yml     # Environment yaml
 └── README.md           # README for Week 1
+```
+
+## Installation
+To run the code in this repo you must first install all needed libraries using conda with the help of the ```environment.yml``` file. This code is tested under python version 3.12.
+
+```bash
+cd Week1
+conda env create -f environment.yml
+conda activate c6
 ```
 
 ## How to run
@@ -113,12 +123,12 @@ We explored different values for the main segmentation and post-processing param
 - `open_size`: kernel size for morphological opening (noise removal).
 - `close_size`: kernel size for morphological closing (hole filling / blob consolidation).
 
-The best-performing configuration (`AP50 = 0.4150`) was:
+The best-performing configuration (`AP50 = 0.4369`) was:
 
 - `alpha = 3`
 - `min_area = 1500`
 - `open_size = 3`
-- `close_size = 7`
+- `close_size = 9`
 
 ## Task 2
 
@@ -176,7 +186,7 @@ We used the best threshold found in Task 1:
 
 Then, we evaluated different values of `rho` while keeping all other parameters fixed.
 
-The best-performing configuration (`AP50 = 0.6419`) was:
+The best-performing configuration (`AP50 = 0.6470`) was:
 
 - `alpha = 3`
 - `rho = 0.01`
