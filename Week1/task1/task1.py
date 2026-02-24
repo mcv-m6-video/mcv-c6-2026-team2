@@ -379,11 +379,11 @@ def run_task1(args):
     gt_dict = load_ground_truth(args.annotations)
     gt_json = gt_to_coco(gt_dict, train_size, video.num_frames - train_size)
 
-    do_grid = (len(args.alpha) > 1) or (len(args.rho) > 1)
+    do_grid = (len(args.alpha) > 1) or (len(args.min_area) > 1) or (len(args.open_size) > 1) or (len(args.close_size) > 1)
     save_results = bool(getattr(args, "config", None)) and do_grid
 
     best_alpha = None
-    best_min_are = None
+    best_min_area = None
     best_open_size = None
     best_close_size = None
     best_boxes = None
