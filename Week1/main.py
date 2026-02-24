@@ -49,7 +49,7 @@ def main():
 
     if args.task == "task1":
         all_boxes, gt_dict, train_end, best_alpha, best_min_area, best_open_size, best_close_size, ap50 = run_task1(args)
-        desc = f"a{best_alpha}_ma{best_min_area}_os{best_open_size}_cs{best_close_size}"
+        desc = f"_a{best_alpha}_ma{best_min_area}_os{best_open_size}_cs{best_close_size}"
 
     elif args.task == "task2":
         all_boxes, gt_dict, train_end, best_alpha, best_rho, ap50 = run_task2(args)

@@ -338,7 +338,7 @@ def evaluate_coco(gt_json, pred_json):
 # Core segmentation engine
 # --------------------------------------------------
 
-def segment_and_detect(frame_gray, frame_hsv, mean_gray, std_gray, mean_hsv, alpha, open_size, close_size, min_area, roi, args):
+def segment_and_detect(frame_gray, frame_hsv, mean_gray, std_gray, mean_hsv, alpha, open_size, close_size, min_area, roi):
     kernel_open = np.ones((open_size, open_size), np.uint8)
     kernel_close = np.ones((close_size, close_size), np.uint8)
     kernel_dilate = np.ones((5, 5), np.uint8)
@@ -411,7 +411,7 @@ def run_task1(args):
                 if idx == train_size:
                     std_gray = np.sqrt(std_gray / (train_size - 2))
                 
-                boxes = segment_and_detect(frame_gray, frame_hsv, mean_gray, std_gray, mean_hsv, alpha, open_size, close_size, min_area, roi, args)
+                boxes = segment_and_detect(frame_gray, frame_hsv, mean_gray, std_gray, mean_hsv, alpha, open_size, close_size, min_area, roi)
                 all_pred_boxes.append(boxes)
 
         pred_json = preds_to_coco(all_pred_boxes, train_size)
