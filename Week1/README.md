@@ -41,10 +41,10 @@ Week1/
 ├── src/
 │   ├── main.py         # Entry point of Week 1
 │   ├── utils.py        # Shared helper functions used across tasks
-│   ├── config/         # Config files 
 │   ├── task1/          # Code for Task 1
 │   ├── task2/          # Code for Task 2
 │   └── task3/          # Code for Task 3 
+├── config/             # Config files 
 ├── environment.yml     # Environment yaml
 └── README.md           # README for Week 1
 ```
@@ -71,7 +71,7 @@ The project can be executed in two different ways:
 You can define all parameters in a YAML configuration file and run:
 
 ```bash
-python main.py --config config/taskX.yaml
+python -m src.main --config config/taskX.yaml
 ```
 
 ### Option 2: Direct Command Line Execution
@@ -79,7 +79,7 @@ python main.py --config config/taskX.yaml
 You can also run a single configuration directly from the terminal:
 
 ```bash
-python main.py \
+python -m src.main \
   --task taskX \
   --video path/to/video.avi \
   --annotations path/to/annotations.xml
