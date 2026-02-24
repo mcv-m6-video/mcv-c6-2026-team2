@@ -6,17 +6,17 @@ import cv2
 from tqdm import tqdm
 import numpy as np
 
-from task1.task1 import (Video,
-                         load_ground_truth,
-                         gt_to_coco,
-                         preds_to_coco,
-                         evaluate_coco,
-                         get_bounding_boxes,
-                         remove_nested_boxes,
-                         merge_overlapping_boxes)
-from task2.task2 import (apply_morphological_filtering,
-                         detect)
-from utils import create_detection_gif, create_detection_video
+from src.task1.task1 import (Video,
+                             load_ground_truth,
+                             gt_to_coco,
+                             preds_to_coco,
+                             evaluate_coco,
+                             get_bounding_boxes,
+                             remove_nested_boxes,
+                             merge_overlapping_boxes)
+from src.task2.task2 import (apply_morphological_filtering,
+                             detect)
+from src.utils import create_detection_gif, create_detection_video
 # from bgsCNN.bgsCNN_v5 import bgsCNN_v5
 
 

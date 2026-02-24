@@ -1,11 +1,13 @@
 import argparse
-from task1.task1 import run_task1
-from task2.task2 import run_task2
-from task3.task3 import run_task3
-from task3.task3_bgs_v2 import run_task3 as run_task3_bgs
-from utils import create_detection_gif, create_detection_video
 import yaml
 import os
+
+from src.task1.task1 import run_task1
+from src.task2.task2 import run_task2
+from src.task3.task3 import run_task3
+# from task3.task3_bgs_v2 import run_task3 as run_task3_bgs
+
+from src.utils import create_detection_gif, create_detection_video
 
 
 def main():
@@ -25,7 +27,7 @@ def main():
     parser.add_argument("--alpha", nargs='+', type=float, default=[3.0])
     parser.add_argument("--min_area", type=int, default=[1500])
     parser.add_argument("--open_size", type=int, default=[3])
-    parser.add_argument("--close_size", type=int, default=[7])
+    parser.add_argument("--close_size", type=int, default=[9])
     parser.add_argument("--rho", nargs='+', type=float, default=[0.01])
 
     parser.add_argument("--gif", action="store_true",
@@ -65,9 +67,9 @@ def main():
         run_task3(args)
         return
 
-    elif args.task == "task3_bgs":
-        run_task3_bgs(args)
-        return
+    # elif args.task == "task3_bgs":
+    #     run_task3_bgs(args)
+    #     return
 
     else:
         raise ValueError("Unknown task")
