@@ -31,13 +31,14 @@ fgbg_cnt = cv2.bgsegm.createBackgroundSubtractorCNT()
 
 
 models = [
-    # (fgbg_mog, "MOG"),
+    (fgbg_mog, "MOG"),
     (fgbg_mog2, "MOG2"),
-    # (fgbg_gmg, "GMG"),
-    # (fgbg_lsbp, "LSBP"),
-    # (fgbg_gsoc, "GSOC"),
-    # (fgbg_knn, "KNN"),
-    # (bgsCNN, "bgsCNN")
+    (fgbg_gmg, "GMG"),
+    (fgbg_lsbp, "LSBP"),
+    (fgbg_gsoc, "GSOC"),
+    (fgbg_knn, "KNN"),
+    (fgbg_cnt, "CNT"),
+    #(bgsCNN, "bgsCNN")
 ]
 
 

@@ -4,7 +4,6 @@ from typing import Tuple, List
 import cv2
 import csv
 import numpy as np
-from src.task1.task1 import Video, load_ground_truth, gt_to_coco, preds_to_coco, evaluate_coco, get_bounding_boxes, remove_nested_boxes, merge_overlapping_boxes, remove_shadows
 from itertools import product
 import os
 import csv
@@ -13,7 +12,7 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 
-from task1.task1 import (Video,
+from src.task1.task1 import (Video,
                          load_ground_truth,
                          gt_to_coco,
                          preds_to_coco,
