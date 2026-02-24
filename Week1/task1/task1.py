@@ -9,10 +9,13 @@ import xml.etree.ElementTree as ET
 import imageio
 from tqdm import tqdm
 import os
+from typing import List
+
 
 # --------------------------------------------------
 # Video loading
 # --------------------------------------------------
+
 
 class Video:
     def __init__(self, video_path):
@@ -25,11 +28,19 @@ class Video:
             ret, frame = self.cap.read()
             if not ret:
                 break
-            
+
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
             yield np.astype(gray, np.float32), np.astype(hsv, np.float32)
-        
+
+    def get_next_raw_frame(self):
+        for _ in range(self.num_frames):
+            ret, frame = self.cap.read()
+            if not ret:
+                break
+
+            yield frame
+
     def close(self):
         self.cap.release()
 
@@ -172,26 +183,47 @@ def merge_overlapping_boxes(boxes, iou_threshold=0.3):
 
     return merged
 
-def remove_shadows(frame_color, background_color, current_mask):
+
+def remove_shadows(
+    frame_color: np.ndarray,
+    background_color: np.ndarray,
+    current_mask: np.ndarray,
+) -> np.ndarray:
+    """
+    Remove shadow pixels from a foreground mask using HSV-based constraints.
+
+    Shadows are detected by comparing the current frame and background model
+    in HSV space. A pixel is considered a shadow if its brightness decreases
+    while hue and saturation remain similar to the background, following the
+    method proposed by Cucchiara et al.
+
+    Args:
+        frame_color: Current frame in HSV color space (H, W, 3).
+        background_color: Background HSV model (H, W, 3).
+        current_mask: Binary foreground mask (uint8, 0/255).
+
+    Returns:
+        np.ndarray: Foreground mask with shadow pixels removed.
+    """
     # Convert both current frame and background model to HSV color space
     hsv_frame = frame_color
     hsv_bg = background_color
-    
+
     # Hue (0), Saturation (1), Value/Brightness (2)
-    h_f, s_f, v_f = hsv_frame[:,:,0], hsv_frame[:,:,1], hsv_frame[:,:,2]
-    h_b, s_b, v_b = hsv_bg[:,:,0], hsv_bg[:,:,1], hsv_bg[:,:,2]
-    
+    h_f, s_f, v_f = hsv_frame[:, :, 0], hsv_frame[:, :, 1], hsv_frame[:, :, 2]
+    h_b, s_b, v_b = hsv_bg[:, :, 0], hsv_bg[:, :, 1], hsv_bg[:, :, 2]
+
     # Thresholds based on Cucchiara et al. theory
     # alpha: lower bound for brightness reduction
     # beta: upper bound for brightness reduction
     alpha, beta = 0.4, 0.9
     # tau_s: maximum allowed change in Saturation
     # tau_h: maximum allowed change in Hue
-    tau_s, tau_h = 50, 20   
+    tau_s, tau_h = 50, 20
 
     # Calculate the Brightness ratio (Value) between frame and background
     v_ratio = v_f / (v_b + 1e-6)
-    
+
     # Shadow mask criteria:
     # 1. Brightness decreases within the expected range (alpha < ratio < beta)
     # 2. Saturation remains similar or slightly lower
@@ -199,20 +231,34 @@ def remove_shadows(frame_color, background_color, current_mask):
     shadow_mask = (v_ratio > alpha) & (v_ratio < beta) & \
                   (np.abs(s_f - s_b) <= tau_s) & \
                   (np.abs(h_f - h_b) <= tau_h)
-    
-    # Refine the original foreground mask: 
+
+    # Refine the original foreground mask:
     # If a pixel was marked as foreground but meets shadow criteria, set it to background (0)
     cleaned_mask = current_mask.copy()
     cleaned_mask[shadow_mask] = 0
-    
+
     return cleaned_mask
 
 # --------------------------------------------------
 # Bounding boxes
 # --------------------------------------------------
 
-def get_bounding_boxes(mask, min_area):
 
+def get_bounding_boxes(mask: np.ndarray, min_area: int) -> List[List[float]]:
+    """
+    Extract bounding boxes from a binary mask using connected components.
+
+    Connected components smaller than `min_area` or with unlikely shape
+    properties are filtered out using fill ratio and aspect ratio heuristics.
+
+    Args:
+        mask (np.ndarray): Binary segmentation mask (H, W).
+        min_area (int): Minimum component area to keep.
+
+    Returns:
+        List[List[float]]: List of bounding boxes in
+            [x_min, y_min, x_max, y_max, score] format.
+    """
     num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
     boxes = []
 
@@ -338,6 +384,7 @@ def evaluate_coco(gt_json, pred_json):
 # Core segmentation engine
 # --------------------------------------------------
 
+
 def segment_and_detect(frame_gray, frame_hsv, mean_gray, std_gray, mean_hsv, alpha, open_size, close_size, min_area, roi):
     kernel_open = np.ones((open_size, open_size), np.uint8)
     kernel_close = np.ones((close_size, close_size), np.uint8)
@@ -363,7 +410,8 @@ def segment_and_detect(frame_gray, frame_hsv, mean_gray, std_gray, mean_hsv, alp
 # --------------------------------------------------
 
 def run_task1(args):
-    print(f"Running Task 2: Single Gaussian (alpha={args.alpha}, min_area={args.min_area}, open_size={args.open_size}, close_size={args.close_size}) ---")
+    print(
+        f"Running Task 2: Single Gaussian (alpha={args.alpha}, min_area={args.min_area}, open_size={args.open_size}, close_size={args.close_size}) ---")
     video = Video(args.video)
     train_size = int(video.num_frames * 0.25)
     mean_gray = None
@@ -379,7 +427,8 @@ def run_task1(args):
     gt_dict = load_ground_truth(args.annotations)
     gt_json = gt_to_coco(gt_dict, train_size, video.num_frames - train_size)
 
-    do_grid = (len(args.alpha) > 1) or (len(args.min_area) > 1) or (len(args.open_size) > 1) or (len(args.close_size) > 1)
+    do_grid = (len(args.alpha) > 1) or (len(args.min_area) > 1) or (
+        len(args.open_size) > 1) or (len(args.close_size) > 1)
     save_results = bool(getattr(args, "config", None)) and do_grid
 
     best_alpha = None
@@ -391,10 +440,11 @@ def run_task1(args):
     results_list = [] if save_results else None
 
     for alpha, min_area, open_size, close_size in product(args.alpha, args.min_area, args.open_size, args.close_size):
-        print(f"Testing alpha={alpha}, min_area={min_area}, open_size={open_size}, close_size={close_size}...")
+        print(
+            f"Testing alpha={alpha}, min_area={min_area}, open_size={open_size}, close_size={close_size}...")
         video.reset()
         all_pred_boxes = []
-    
+
         for idx, (frame_gray, frame_hsv) in tqdm(enumerate(video.get_next_frame()), total=video.num_frames):
             if idx < train_size:
                 if idx == 0:
@@ -403,23 +453,27 @@ def run_task1(args):
                     prev_mean_gray = mean_gray
                     mean_hsv = frame_hsv
                 else:
-                    mean_gray = prev_mean_gray + (frame_gray - prev_mean_gray) / idx
-                    std_gray = std_gray + (frame_gray - prev_mean_gray) * (frame_gray - mean_gray)
+                    mean_gray = prev_mean_gray + \
+                        (frame_gray - prev_mean_gray) / idx
+                    std_gray = std_gray + \
+                        (frame_gray - prev_mean_gray) * (frame_gray - mean_gray)
                     prev_mean_gray = mean_gray
                     mean_hsv = mean_hsv + (frame_hsv - mean_hsv) / idx
             else:
                 if idx == train_size:
                     std_gray = np.sqrt(std_gray / (train_size - 2))
-                
-                boxes = segment_and_detect(frame_gray, frame_hsv, mean_gray, std_gray, mean_hsv, alpha, open_size, close_size, min_area, roi)
+
+                boxes = segment_and_detect(
+                    frame_gray, frame_hsv, mean_gray, std_gray, mean_hsv, alpha, open_size, close_size, min_area, roi)
                 all_pred_boxes.append(boxes)
 
         pred_json = preds_to_coco(all_pred_boxes, train_size)
-        
+
         ap50 = evaluate_coco(gt_json, pred_json)
 
         if save_results:
-            results_list.append({'alpha': alpha, 'min_area': min_area, 'open_size': open_size, 'close_size': close_size, 'ap50': ap50})
+            results_list.append({'alpha': alpha, 'min_area': min_area,
+                                'open_size': open_size, 'close_size': close_size, 'ap50': ap50})
 
         if ap50 > best_ap50:
             best_ap50 = ap50
@@ -429,14 +483,15 @@ def run_task1(args):
             best_close_size = close_size
             best_boxes = all_pred_boxes
 
-    
     if save_results:
         output_dir = f"{args.task}/results"
         os.makedirs(output_dir, exist_ok=True)
-        csv_path = os.path.join(output_dir, f"{os.path.basename(args.config).split('.')[0]}.csv")
+        csv_path = os.path.join(
+            output_dir, f"{os.path.basename(args.config).split('.')[0]}.csv")
 
         with open(csv_path, mode='w', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=['alpha', 'min_area', 'open_size', 'close_size', 'ap50'])
+            writer = csv.DictWriter(
+                f, fieldnames=['alpha', 'min_area', 'open_size', 'close_size', 'ap50'])
             writer.writeheader()
             writer.writerows(results_list)
 
