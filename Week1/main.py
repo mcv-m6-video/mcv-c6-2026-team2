@@ -22,7 +22,7 @@ def main():
     parser.add_argument("--alpha", nargs='+', type=float, default=[3.0])
     parser.add_argument("--min_area", type=int, default=[1500])
     parser.add_argument("--open_size", type=int, default=[3])
-    parser.add_argument("--close_size", type=int, default=[7])
+    parser.add_argument("--close_size", type=int, default=[9])
     parser.add_argument("--rho", nargs='+', type=float, default=[0.01])
 
     parser.add_argument("--gif", action="store_true", help="Generate detection GIF at the end")
