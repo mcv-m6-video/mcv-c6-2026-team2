@@ -18,13 +18,11 @@ def main():
                         help="Path to XML annotations")
     
     parser.add_argument("--config", type=str, default=None)
-    parser.add_argument("--dataset", type=str, default='dataset')
-    parser.add_argument("--train_ratio", type=float, default=0.25)
 
     parser.add_argument("--alpha", nargs='+', type=float, default=[3.0])
-    parser.add_argument("--min_area", type=int, default=1500)
-    parser.add_argument("--open_size", type=int, default=3)
-    parser.add_argument("--close_size", type=int, default=7)
+    parser.add_argument("--min_area", type=int, default=[1500])
+    parser.add_argument("--open_size", type=int, default=[3])
+    parser.add_argument("--close_size", type=int, default=[7])
     parser.add_argument("--rho", nargs='+', type=float, default=[0.01])
 
     parser.add_argument("--gif", action="store_true", help="Generate detection GIF at the end")
@@ -50,19 +48,18 @@ def main():
     best_rho = None
 
     if args.task == "task1":
-        all_boxes, gt_dict, train_end, ap50 = run_task1(args)
+        all_boxes, gt_dict, train_end, best_alpha, best_min_area, best_open_size, best_close_size, ap50 = run_task1(args)
+        desc = f"a{best_alpha}_ma{best_min_area}_os{best_open_size}_cs{best_close_size}"
 
     elif args.task == "task2":
         all_boxes, gt_dict, train_end, best_alpha, best_rho, ap50 = run_task2(args)
-
+        desc = f"_a{best_alpha}_r{best_rho}"
     else:
         raise ValueError("Unknown task")
 
     if args.gif:
         prefix = f"detections_{args.task}"
-        if best_alpha is not None and best_rho is not None:
-            desc = f"_a{best_alpha}_r{best_rho}"
-            prefix = prefix + desc
+        prefix = prefix + desc
         file_name = prefix + f"_ap50_{ap50:.04f}.mp4"
         output_folder = os.path.join(args.task, 'results', 'videos')
         os.makedirs(output_folder, exist_ok=True)

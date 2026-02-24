@@ -1,12 +1,14 @@
 import cv2
 import numpy as np
 import json
+import csv
+from itertools import product
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 import xml.etree.ElementTree as ET
 import imageio
 from tqdm import tqdm
-
+import os
 
 # --------------------------------------------------
 # Video loading
@@ -336,21 +338,21 @@ def evaluate_coco(gt_json, pred_json):
 # Core segmentation engine
 # --------------------------------------------------
 
-def segment_and_detect(frame_gray, frame_hsv, mean_gray, std_gray, mean_hsv, roi, args):
-    kernel_open = np.ones((args.open_size, args.open_size), np.uint8)
-    kernel_close = np.ones((args.close_size, args.close_size), np.uint8)
+def segment_and_detect(frame_gray, frame_hsv, mean_gray, std_gray, mean_hsv, alpha, open_size, close_size, min_area, roi, args):
+    kernel_open = np.ones((open_size, open_size), np.uint8)
+    kernel_close = np.ones((close_size, close_size), np.uint8)
     kernel_dilate = np.ones((5, 5), np.uint8)
 
     diff = np.abs(frame_gray - mean_gray)
 
-    mask_bool = (diff >= args.alpha * (std_gray + 2)) & roi
+    mask_bool = (diff >= alpha * (std_gray + 2)) & roi
     mask_uint8 = mask_bool.astype(np.uint8) * 255
     mask_uint8 = remove_shadows(frame_hsv, mean_hsv, mask_uint8)
     mask_proc = cv2.morphologyEx(mask_uint8, cv2.MORPH_OPEN, kernel_open)
     mask_proc = cv2.morphologyEx(mask_proc, cv2.MORPH_CLOSE, kernel_close)
     mask_proc = cv2.dilate(mask_proc, kernel_dilate, iterations=1)
 
-    boxes = get_bounding_boxes(mask_proc, args.min_area)
+    boxes = get_bounding_boxes(mask_proc, min_area)
     boxes = remove_nested_boxes(boxes)
     boxes = merge_overlapping_boxes(boxes)
     return boxes
@@ -361,7 +363,7 @@ def segment_and_detect(frame_gray, frame_hsv, mean_gray, std_gray, mean_hsv, roi
 # --------------------------------------------------
 
 def run_task1(args):
-    print("Running Task 1")
+    print(f"Running Task 2: Single Gaussian (alpha={args.alpha}, min_area={args.min_area}, open_size={args.open_size}, close_size={args.close_size}) ---")
     video = Video(args.video)
     train_size = int(video.num_frames * 0.25)
     mean_gray = None
@@ -373,36 +375,79 @@ def run_task1(args):
         cv2.IMREAD_GRAYSCALE
     )
     roi = roi > 0
-    all_boxes = []
+
+    gt_dict = load_ground_truth(args.annotations)
+    gt_json = gt_to_coco(gt_dict, train_size, video.num_frames - train_size)
+
+    do_grid = (len(args.alpha) > 1) or (len(args.rho) > 1)
+    save_results = bool(getattr(args, "config", None)) and do_grid
+
+    best_alpha = None
+    best_min_are = None
+    best_open_size = None
+    best_close_size = None
+    best_boxes = None
+    best_ap50 = -1
+    results_list = [] if save_results else None
+
+    for alpha, min_area, open_size, close_size in product(args.alpha, args.min_area, args.open_size, args.close_size):
+        print(f"Testing alpha={alpha}, min_area={min_area}, open_size={open_size}, close_size={close_size}...")
+        video.reset()
+        all_pred_boxes = []
     
-    for idx, (frame_gray, frame_hsv) in tqdm(enumerate(video.get_next_frame()), total=video.num_frames):
-        if idx < train_size:
-            if idx == 0:
-                mean_gray = frame_gray
-                std_gray = np.zeros_like(mean_gray)
-                prev_mean_gray = mean_gray
-                mean_hsv = frame_hsv
+        for idx, (frame_gray, frame_hsv) in tqdm(enumerate(video.get_next_frame()), total=video.num_frames):
+            if idx < train_size:
+                if idx == 0:
+                    mean_gray = frame_gray
+                    std_gray = np.zeros_like(mean_gray)
+                    prev_mean_gray = mean_gray
+                    mean_hsv = frame_hsv
+                else:
+                    mean_gray = prev_mean_gray + (frame_gray - prev_mean_gray) / idx
+                    std_gray = std_gray + (frame_gray - prev_mean_gray) * (frame_gray - mean_gray)
+                    prev_mean_gray = mean_gray
+                    mean_hsv = mean_hsv + (frame_hsv - mean_hsv) / idx
             else:
-                mean_gray = prev_mean_gray + (frame_gray - prev_mean_gray) / idx
-                std_gray = std_gray + (frame_gray - prev_mean_gray) * (frame_gray - mean_gray)
-                prev_mean_gray = mean_gray
-                mean_hsv = mean_hsv + (frame_hsv - mean_hsv) / idx
-        else:
-            if idx == train_size:
-                std_gray = np.sqrt(std_gray / (train_size - 2))
-            
-            boxes = segment_and_detect(frame_gray, frame_hsv, mean_gray, std_gray, mean_hsv, roi, args)
-            all_boxes.append(boxes)
+                if idx == train_size:
+                    std_gray = np.sqrt(std_gray / (train_size - 2))
+                
+                boxes = segment_and_detect(frame_gray, frame_hsv, mean_gray, std_gray, mean_hsv, alpha, open_size, close_size, min_area, roi, args)
+                all_pred_boxes.append(boxes)
 
-    print(f"{len(all_boxes)}")
-    gt = load_ground_truth(args.annotations)
-    gt_json = gt_to_coco(gt, train_size, video.num_frames - train_size)
-    pred_json = preds_to_coco(all_boxes, train_size)
+        pred_json = preds_to_coco(all_pred_boxes, train_size)
+        
+        ap50 = evaluate_coco(gt_json, pred_json)
+
+        if save_results:
+            results_list.append({'alpha': alpha, 'min_area': min_area, 'open_size': open_size, 'close_size': close_size, 'ap50': ap50})
+
+        if ap50 > best_ap50:
+            best_ap50 = ap50
+            best_alpha = alpha
+            best_min_area = min_area
+            best_open_size = open_size
+            best_close_size = close_size
+            best_boxes = all_pred_boxes
+
     
-    ap50 = evaluate_coco(gt_json, pred_json)
+    if save_results:
+        output_dir = f"{args.task}/results"
+        os.makedirs(output_dir, exist_ok=True)
+        csv_path = os.path.join(output_dir, f"{os.path.basename(args.config).split('.')[0]}.csv")
 
-    print(f"\nFinal AP50: {ap50:.4f}")
+        with open(csv_path, mode='w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=['alpha', 'min_area', 'open_size', 'close_size', 'ap50'])
+            writer.writeheader()
+            writer.writerows(results_list)
+
+        print(f"\nGrid Search Finished. Results saved to: {csv_path}")
+
+    print(f"\nFinal Adaptive AP50: {best_ap50:.4f}")
+    print(f"\nFinal Alpha: {best_alpha:.4f}")
+    print(f"\nFinal Min Area: {best_min_area:.4f}")
+    print(f"\nFinal Open Size: {best_open_size:.4f}")
+    print(f"\nFinal Close Size: {best_close_size:.4f}")
 
     video.close()
 
-    return all_boxes, gt, train_size, ap50
+    return best_boxes, gt_dict, train_size, best_alpha, best_min_area, best_open_size, best_close_size, best_ap50
