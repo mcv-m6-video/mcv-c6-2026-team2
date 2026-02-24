@@ -1,7 +1,7 @@
 import argparse
-from task1.task1 import run_task1
-from task2.task2 import run_task2
-from utils import create_detection_gif, create_detection_video
+from src.task1.task1 import run_task1
+from src.task2.task2 import run_task2
+from src.utils import create_detection_gif, create_detection_video
 import yaml
 import os
 
