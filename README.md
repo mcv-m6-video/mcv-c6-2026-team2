@@ -24,7 +24,7 @@ In Week 1 of Module C6 (Video Surveillance for Road Traffic Monitoring), we focu
 
 We implement a single Gaussian background model, extend it with an adaptive version, and evaluate detections using mAP@0.5. Finally, we compare our approach with state-of-the-art methods.
 
-For a detailed explanation of the tasks, implementation steps, and experiments refer to the dedicated [Week 1 README](./Week%201/README.md).
+For a detailed explanation of the tasks, implementation steps, and experiments refer to the dedicated [Week 1 README](./Week1/README.md).
 
 
 
