@@ -65,11 +65,14 @@ def run_task2(args):
     gt_dict = load_ground_truth(args.annotations)
     gt_json = gt_to_coco(gt_dict, train_size, video.num_frames - train_size)
 
+    do_grid = (len(args.alpha) > 1) or (len(args.rho) > 1)
+    save_results = bool(getattr(args, "config", None)) and do_grid
+
     best_alpha = None
     best_rho = None
     best_boxes = None
     best_ap50 = -1
-    results_list = []
+    results_list = [] if save_results else None
 
     for alpha, rho in product(args.alpha, args.rho):
         print(f"Testing alpha={alpha}, rho={rho}...")
@@ -99,7 +102,8 @@ def run_task2(args):
 
         ap50 = evaluate_coco(gt_json, pred_json)
 
-        results_list.append({'alpha': alpha, 'rho': rho, 'ap50': ap50})
+        if save_results:
+            results_list.append({'alpha': alpha, 'rho': rho, 'ap50': ap50})
 
         if ap50 > best_ap50:
             best_ap50 = ap50
@@ -107,19 +111,22 @@ def run_task2(args):
             best_rho = rho
             best_boxes = all_pred_boxes
 
-    output_dir = f"{args.task}/results"
-    os.makedirs(output_dir, exist_ok=True)
-    csv_path = os.path.join(output_dir, f"{os.path.basename(args.config).split('.')[0]}.csv")
+    if save_results:
+        output_dir = f"{args.task}/results"
+        os.makedirs(output_dir, exist_ok=True)
+        csv_path = os.path.join(output_dir, f"{os.path.basename(args.config).split('.')[0]}.csv")
 
-    with open(csv_path, mode='w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=['alpha', 'rho', 'ap50'])
-        writer.writeheader()
-        writer.writerows(results_list)
-    
-    print(f"\nGrid Search Finished. Results saved to: {csv_path}")
+        with open(csv_path, mode='w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=['alpha', 'rho', 'ap50'])
+            writer.writeheader()
+            writer.writerows(results_list)
+
+        print(f"\nGrid Search Finished. Results saved to: {csv_path}")
 
     print(f"\nFinal Adaptive AP50: {best_ap50:.4f}")
     print(f"\nFinal Alpha: {best_alpha:.4f}")
     print(f"\nFinal Rho: {best_rho:.4f}")
+
+    video.close()
 
     return best_boxes, gt_dict, train_size, best_alpha, best_rho, best_ap50
