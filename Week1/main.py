@@ -1,8 +1,9 @@
 import argparse
-from task1.task1 import run_task1
-from task2.task2 import run_task2
-from utils import create_detection_gif
+from task1.task1_iterative import run_task1
+from task2.task2_iterative import run_task2
+from utils import create_detection_gif, create_detection_video
 import yaml
+import os
 
 def main():
 
@@ -45,23 +46,35 @@ def main():
     assert args.video
     assert args.annotations
 
+    best_alpha = None
+    best_rho = None
+
     if args.task == "task1":
-        test_frames, all_boxes, gt_dict, train_end, alpha = run_task1(args)
+        all_boxes, gt_dict, train_end, ap50 = run_task1(args)
 
     elif args.task == "task2":
-        test_frames, all_boxes, gt_dict, train_end, alpha, rho = run_task2(args)
+        all_boxes, gt_dict, train_end, best_alpha, best_rho, ap50 = run_task2(args)
 
     else:
         raise ValueError("Unknown task")
 
     if args.gif:
-        create_detection_gif(
-            test_frames=test_frames, 
-            all_pred_boxes=all_boxes, 
-            gt_per_frame=gt_dict, 
-            train_end=train_end,
-            output_path=f"{args.task}/outputs/detections_alpha_{alpha}.gif",
-            max_frames=100
+        prefix = f"detections_{args.task}"
+        if best_alpha is not None and best_rho is not None:
+            desc = f"_a{best_alpha}_r{best_rho}"
+            prefix = prefix + desc
+        file_name = prefix + f"_ap50_{ap50:.04f}.avi"
+        output_folder = os.path.join(args.task, 'results', 'videos')
+        os.makedirs(output_folder, exist_ok=True)
+        
+        output_path = os.path.join(args.task, 'results', 'videos', file_name)
+        
+        create_detection_video(
+            args.video,
+            all_boxes,
+            gt_dict,
+            train_end,
+            output_path=output_path
         )
 
 if __name__ == "__main__":
