@@ -194,3 +194,74 @@ The best-performing configuration (`AP50 = 0.6470`) was:
 This configuration achieved the best balance between adaptation to scene changes and preservation of moving objects as foreground.
 
 ## Task 3
+
+In this task, we evaluate our custom adaptive Gaussian background subtraction model against several widely used state-of-the-art (SOTA) approaches.
+
+The objective is to analyse how classical and modern background subtraction techniques behave under the same conditions and compare their performance against our proposed method.
+
+### OpenCV Background Subtraction Methods
+
+We benchmarked a set of background subtraction algorithms available in OpenCV. These methods represent different modeling philosophies ranging from probabilistic models to texture-based and counting-based approaches.
+
+- **MOG (Mixture of Gaussians) [1]:** Models each pixel as a fixed number of Gaussian distributions representing different background states. This method assumes that background variations can be captured through multiple Gaussian modes.
+
+- **MOG2 (Adaptive Mixture of Gaussians) [2]:** Extension of MOG where the number of Gaussian components per pixel is automatically adapted over time. This improves robustness in dynamic scenes and allows better modeling of evolving backgrounds.
+
+- **KNN (K-Nearest Neighbors Background Model) [2]:** Maintains a history of pixel samples and classifies new observations based on the number of nearby samples in feature space. Pixels with insufficient neighbors are labeled as foreground.
+
+- **CNT (Counting-Based Background Model) [3]:** Uses occurrence counting instead of probabilistic modeling. Pixel values frequently observed over time are considered background. This method is extremely lightweight computationally and suitable for fast processing.
+
+- **GSOC (Google Summer of Code Background Subtractor):** Pixel-level adaptive model using local statistics and multi-scale spatio-temporal information. Designed to improve stability under dynamic backgrounds while reducing ghost artifacts.
+
+- **GMG (Godbehere–Matsukawa–Goldberg) [4]:** Combines Bayesian foreground estimation with probabilistic background modeling initialized through temporal filtering. Performs well after a stable initialization phase but is sensitive to parameter settings and noise.
+
+- **LSBP (Local SVD Binary Pattern) [5]:** Texture-based approach using Local SVD Binary Patterns to encode local spatial structure rather than raw intensity. Improves robustness to illumination variation and background texture changes at the cost of increased computational complexity.
+
+
+#### Post-processing Hyperparameter
+
+All OpenCV methods were evaluated using a configurable post-processing step controlled through a single hyperparameter:
+
+`post_process` ∈ {`0`, `1`, `2`}
+
+- `0` - No post-processing: Raw foreground masks are used directly.
+
+- `1` - Standard post-processing: Applies the same morphological filtering pipeline used in previous tasks of the project.
+
+- `2` - Opening operation only: Performs a morphological opening. This configuration is the recommended post-processing strategy for the GMG method.
+
+This setup allows a fair comparison between methods while analyzing how morphological refinement influences performance.
+
+
+### ZBS - Zero-Shot Background Subtraction
+
+In addition to OpenCV models, we evaluate the Zero-Shot Background Subtraction (ZBS) method.
+
+ZBS is a deep learning–based zero-shot approach that performs foreground segmentation without scene-specific training or explicit background modeling. Instead of learning a background distribution, it leverages a pre-trained vision model to distinguish moving objects from static regions directly from visual cues.
+
+This allows strong generalization across different scenes without requiring adaptation or fine-tuning.
+
+*__NOTE:__ Method discovered thanks to work from Group 1 (2025).*
+
+#### How to run
+
+To execute the ZBS part, you must follow the installation and usage instructions from the [official ZBS repository](https://github.com/CASIA-IVA-Lab/ZBS) and extract the masks for each frame.
+
+For evaluation, use this command which will output the mAP for the masks predicted by ZBS:
+
+```bash
+python3 -m src.task3.eval_zbs_group1_2025 -m <ZBS_MASK>.avi -gt <GT_ANNOTATIONS>.xml -v
+```
+
+
+### References
+
+[1] Pakorn KaewTraKulPong and Richard Bowden. An improved adaptive background mixture model for real-time tracking with shadow detection. In Video-Based Surveillance Systems, pages 135–144. Springer, 2002.
+
+[2] Zoran Zivkovic and Ferdinand van der Heijden. Efficient adaptive density estimation per image pixel for the task of background subtraction. Pattern recognition letters, 27(7):773–780, 2006.
+
+[3] Sagi Zeevi. (2016). BackgroundSubtractorCNT: A Fast Background Subtraction Algorithm (1.1.4). Zenodo. https://doi.org/10.5281/zenodo.4267853
+
+[4] Andrew B Godbehere, Akihiro Matsukawa, and Ken Goldberg. Visual tracking of human visitors under variable-lighting conditions for a responsive audio art installation. In American Control Conference (ACC), 2012, pages 4305–4312. IEEE, 2012.
+
+[5] L. Guo, D. Xu, and Z. Qiang. Background subtraction using local svd binary pattern. In 2016 IEEE Conference on Computer Vision and Pattern Recognition Workshops (CVPRW), pages 1159–1167, June 2016.

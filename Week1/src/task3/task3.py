@@ -10,40 +10,33 @@ from src.task1.task1 import (Video,
                              load_ground_truth,
                              gt_to_coco,
                              preds_to_coco,
-                             evaluate_coco,
-                             get_bounding_boxes,
-                             remove_nested_boxes,
-                             merge_overlapping_boxes)
+                             evaluate_coco)
 from src.task2.task2 import (apply_morphological_filtering,
                              detect)
-from src.utils import create_detection_gif, create_detection_video
-# from bgsCNN.bgsCNN_v5 import bgsCNN_v5
+from src.utils import create_detection_video
 
 
 fgbg_mog = cv2.bgsegm.createBackgroundSubtractorMOG()
 fgbg_mog2 = cv2.createBackgroundSubtractorMOG2()
-fgbg_gmg = cv2.bgsegm.createBackgroundSubtractorGMG()
+fgbg_gmg = cv2.bgsegm.createBackgroundSubtractorGMG(decisionThreshold=0.95)
 fgbg_lsbp = cv2.bgsegm.createBackgroundSubtractorLSBP()
 fgbg_gsoc = cv2.bgsegm.createBackgroundSubtractorGSOC()
 fgbg_knn = cv2.createBackgroundSubtractorKNN()
 fgbg_cnt = cv2.bgsegm.createBackgroundSubtractorCNT()
-# bgsCNN = bgsCNN_v5()
 
-
-models = [
-    (fgbg_mog, "MOG"),
-    (fgbg_mog2, "MOG2"),
-    (fgbg_gmg, "GMG"),
-    (fgbg_lsbp, "LSBP"),
-    (fgbg_gsoc, "GSOC"),
-    (fgbg_knn, "KNN"),
-    (fgbg_cnt, "CNT"),
-    #(bgsCNN, "bgsCNN")
-]
+models = {
+    "MOG": fgbg_mog,
+    "MOG2": fgbg_mog2,
+    "GMG": fgbg_gmg,
+    "LSBP": fgbg_lsbp,
+    "GSOC": fgbg_gsoc,
+    "KNN": fgbg_knn,
+    "CNT": fgbg_cnt,
+}
 
 
 def run_task3(args):
-    print(f"Running Task 2: State-of-The-Art model comparison")
+    print(f"Running Task 3: State-of-The-Art model comparison")
 
     video = Video(args.video)
     train_size = int(video.num_frames * 0.25)
@@ -61,7 +54,11 @@ def run_task3(args):
 
     results_list = [] if save_results else None
 
-    for model, model_name in models:
+    for model_name in args.models:
+        model = models.get(model_name, False)
+        if not model:
+            raise ValueError(f"model name {model_name} is not a valid option")
+
         print(f"\nTesting model: {model_name}")
         best_boxes = None
         best_post_process = None
@@ -88,10 +85,11 @@ def run_task3(args):
                     if int(post_process) == 1:
                         mask = apply_morphological_filtering(
                             mask, open_size, close_size)
-                    elif int(post_process) == 2:
+                    elif int(post_process) >= 2:
                         # GMG specific post-processing
+                        se = 3 + 2*(int(post_process)-2)
                         kernel = cv2.getStructuringElement(
-                            cv2.MORPH_ELLIPSE, (3, 3))
+                            cv2.MORPH_ELLIPSE, (se, se))
                         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
 
                     # detect bounding boxes
@@ -115,12 +113,12 @@ def run_task3(args):
                 best_boxes = all_pred_boxes
 
         if save_results:
-            output_dir = f"{args.task}/results"
+            output_dir = f"src/{args.task}/results"
             os.makedirs(output_dir, exist_ok=True)
             csv_path = os.path.join(
                 output_dir, f"{os.path.basename(args.config).split('.')[0]}.csv")
 
-            with open(csv_path, mode='w', newline='') as f:
+            with open(csv_path, mode='a', newline='') as f:
                 writer = csv.DictWriter(
                     f, fieldnames=['model', 'post_process', 'ap50'])
                 writer.writeheader()

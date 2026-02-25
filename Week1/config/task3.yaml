@@ -1,0 +1,8 @@
+task: task3
+video: Data/AICity_data/train/S03/c010/vdo.avi
+annotations: Data/AICity_data/train/S03/c010/ai_challenge_s03_c010-full_annotation.xml
+
+models: [MOG, MOG2, GMG, LSBP, GSOC, KNN, CNT]  # valid options: [MOG, MOG2, GMG, LSBP, GSOC, KNN, CNT]
+post_process: [0, 1, 2]  # valid options: [0,1,2,3,4,5]
+
+gif: true

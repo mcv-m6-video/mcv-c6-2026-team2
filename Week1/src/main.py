@@ -5,9 +5,8 @@ import os
 from src.task1.task1 import run_task1
 from src.task2.task2 import run_task2
 from src.task3.task3 import run_task3
-# from task3.task3_bgs_v2 import run_task3 as run_task3_bgs
 
-from src.utils import create_detection_gif, create_detection_video
+from src.utils import create_detection_video
 
 
 def main():
@@ -54,8 +53,8 @@ def main():
     best_rho = None
 
     if args.task == "task1":
-        all_boxes, gt_dict, train_end, best_alpha, best_min_area, best_open_size, best_close_size, ap50 = run_task1(
-            args)
+        (all_boxes, gt_dict, train_end, best_alpha, best_min_area,
+         best_open_size, best_close_size, ap50) = run_task1(args)
         desc = f"_a{best_alpha}_ma{best_min_area}_os{best_open_size}_cs{best_close_size}"
 
     elif args.task == "task2":
@@ -67,10 +66,6 @@ def main():
         run_task3(args)
         return
 
-    # elif args.task == "task3_bgs":
-    #     run_task3_bgs(args)
-    #     return
-
     else:
         raise ValueError("Unknown task")
 
@@ -81,7 +76,8 @@ def main():
         output_folder = os.path.join(args.task, 'results', 'videos')
         os.makedirs(output_folder, exist_ok=True)
 
-        output_path = os.path.join('src', args.task, 'results', 'videos', file_name)
+        output_path = os.path.join(
+            'src', args.task, 'results', 'videos', file_name)
 
         create_detection_video(
             args.video,
