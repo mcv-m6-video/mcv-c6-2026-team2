@@ -81,7 +81,7 @@ def main():
         output_folder = os.path.join(args.task, 'results', 'videos')
         os.makedirs(output_folder, exist_ok=True)
 
-        output_path = os.path.join(args.task, 'results', 'videos', file_name)
+        output_path = os.path.join('src', args.task, 'results', 'videos', file_name)
 
         create_detection_video(
             args.video,

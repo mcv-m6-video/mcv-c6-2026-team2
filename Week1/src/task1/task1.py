@@ -402,7 +402,7 @@ def segment_and_detect(frame_gray, frame_hsv, mean_gray, std_gray, mean_hsv, alp
     boxes = get_bounding_boxes(mask_proc, min_area)
     boxes = remove_nested_boxes(boxes)
     boxes = merge_overlapping_boxes(boxes)
-    return boxes
+    return boxes, mask_proc
 
 
 # --------------------------------------------------
@@ -439,6 +439,8 @@ def run_task1(args):
     best_ap50 = -1
     results_list = [] if save_results else None
 
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    mask_video = cv2.VideoWriter('src/task1/results/videos/best_masks.mp4', fourcc, 10, (video.width//2, video.height//2), isColor=False)
     for alpha, min_area, open_size, close_size in product(args.alpha, args.min_area, args.open_size, args.close_size):
         print(
             f"Testing alpha={alpha}, min_area={min_area}, open_size={open_size}, close_size={close_size}...")
@@ -463,10 +465,12 @@ def run_task1(args):
                 if idx == train_size:
                     std_gray = np.sqrt(std_gray / (train_size - 2))
 
-                boxes = segment_and_detect(
+                boxes, mask = segment_and_detect(
                     frame_gray, frame_hsv, mean_gray, std_gray, mean_hsv, alpha, open_size, close_size, min_area, roi)
-                all_pred_boxes.append(boxes)
 
+                mask_video.write(cv2.resize(mask, (video.width//2, video.height//2)))
+                all_pred_boxes.append(boxes)
+        mask_video.release()
         pred_json = preds_to_coco(all_pred_boxes, train_size)
 
         ap50 = evaluate_coco(gt_json, pred_json)

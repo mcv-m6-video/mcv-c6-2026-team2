@@ -140,7 +140,7 @@ def run_task3(args):
             os.makedirs(output_folder, exist_ok=True)
 
             output_path = os.path.join(
-                args.task, 'results', 'videos', file_name)
+                'src', args.task, 'results', 'videos', file_name)
 
             video.close()
 

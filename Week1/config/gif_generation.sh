@@ -2,6 +2,13 @@
 
 src .venv/bin/activate
 
+# Masks
+echo Generating raw mask gif
+python -m src.utils src/task1/results/videos/raw_masks.mp4 src/task1/results/videos/raw_masks.gif --start_frame 0 --end_frame 90 --opt
+python -m src.utils src/task1/results/videos/shadowless_masks.mp4 src/task1/results/videos/shadowless_masks.gif --start_frame 0 --end_frame 90 --opt
+python -m src.utils src/task1/results/videos/morpho_masks.mp4 src/task1/results/videos/morpho_masks.gif --start_frame 0 --end_frame 90 --opt
+python -m src.utils src/task1/results/videos/best_masks.mp4 src/task1/results/videos/best_masks.gif --start_frame 0 --end_frame 90 --opt
+
 # Ok Detections
 echo Generating Ok detections gifs...
 echo Task 1...
