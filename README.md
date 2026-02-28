@@ -26,6 +26,14 @@ We implement a single Gaussian background model, extend it with an adaptive vers
 
 For a detailed explanation of the tasks, implementation steps, and experiments refer to the dedicated [Week 1 README](./Week1/README.md).
 
+## Week 2: Object Detection and Tracking
+
+In Week 2 of Module C6, we move from background estimation to deep learning-based Object Detection and Object Tracking.
+
+We evaluate state-of-the-art detectors, both as off-the-shelf models and by fine-tuning them to our specific traffic data. Additionally, we implement tracking algorithms based on Maximum Overlap and Kalman Filters to maintain vehicle identities across the sequence.
+
+For a detailed explanation of the tasks, implementation steps, and experiments refer to the dedicated [Week 2 README](./Week2/README.md).
+
 
 
 
