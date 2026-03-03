@@ -4,7 +4,7 @@ import subprocess
 import os
 import shutil
 
-def load_maskrcnn_detections(file_path):
+def load_detections(file_path):
     """
     Loads detections from AICity_data/train/S03/c010/det/det_mask_rcnn.txt (we can change this when we finish Task 1).
     Format: <frame>, <id>, <left>, <top>, <width>, <height>, <conf>, ...
@@ -35,12 +35,12 @@ def convert_xml_to_mot(xml_path, output_txt_path):
 
     for track in root.findall('track'):
         track_id = track.get('id')
-        if track.get('label') != 'car': # We are only tracking cars, should we change this?
+        if track.get('label') != 'car': # We are only tracking cars
             continue 
         
         for box in track.findall('box'):
-            # Remove if it's outside the frame
-            if box.get('outside') == '1': 
+            # Remove if it's outside the frame or occluded to get better metrics
+            if box.get('outside') == '1' or box.get('occluded') == '1': 
                 continue
             
             # Note: We keep parked and occluded as they are valid tracking targets, should we change this ?
@@ -175,7 +175,7 @@ def prepare_trackeval_folders(base_trackeval_path, results_path, gt_path, tracke
 
     print(f"TrackEval structure ready for benchmark '{benchmark}' and tracker '{tracker_name}'")
 
-def run_trackeval_script(trackeval_path, tracker_name="overlap"):
+def run_trackeval_script(trackeval_path, tracker_name="overlap", save_path=None):
     """
     Runs the TrackEval script using the standardized folder structure created above.
     """
@@ -188,4 +188,9 @@ def run_trackeval_script(trackeval_path, tracker_name="overlap"):
         "--DO_PREPROC", "False",
         "--USE_PARALLEL", "False"
     ]
-    subprocess.run(command)
+    result = subprocess.run(command, capture_output=True, text=True)
+
+    if save_path is not None:
+        with open(save_path, "w") as f:
+            f.write(result.stdout)
+        print(f"Metrics saved to: {save_path}")
