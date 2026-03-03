@@ -14,13 +14,16 @@ def main():
     
     parser.add_argument('--task', type=str, required=True, choices=['1.1', '1.2', '2.1'], help="Task to run")
     
-    parser.add_argument('--det_path', type=str, default="Data/AICity_data/train/S03/c010/det/det_mask_rcnn.txt")
-    parser.add_argument('--gt_xml', type=str, default="Data/AICity_data/train/S03/c010/ai_challenge_s03_c010-full_annotation.xml")
+    parser.add_argument('--det_path', type=str, default="Data/AICity_data/train/S03/c010/det/det_fasterrcnn.txt")
+    parser.add_argument('--gt_xml_path', type=str, default="Data/AICity_data/train/S03/c010/ai_challenge_s03_c010-full_annotation.xml")
     parser.add_argument('--video_path', type=str, default="Data/AICity_data/train/S03/c010/vdo.avi")
     
     parser.add_argument('--make_video', action='store_true', help="Generate visualization video")
     parser.add_argument('--eval', action='store_true', help="Run TrackEval after tracking")
-    parser.add_argument('--iou_thr', type=float, default=0.4, help="IoU threshold for association")
+    parser.add_argument('--iou_thr', type=float, default=0.4, help="Minimum IoU required to associate a detection with an existing track.")
+    parser.add_argument('--max_age', type=int, default=5, help="Maximum number of consecutive frames a track is kept alive without being matched.")
+    parser.add_argument('--conf_thr', type=float, default=0.4, help="Minimum detection confidence required to consider a bounding box for tracking.")
+    parser.add_argument('--filter_thr', type=float, default=0.4, help="IoU threshold used to remove duplicate detections within the same frame (NMS-like filtering).")
 
     # Task 1.1 args
     parser.add_argument("--model_name", type=str, default="faster-rcnn")
@@ -40,7 +43,7 @@ def main():
 
     args = parser.parse_args()
 
-    output_folder = f"results/task{args.task.replace('.', '')}"
+    output_folder = f"results/task{args.task.replace('.', '')}/fasterrcnn/"
     output_txt = os.path.join(output_folder, "data/s03c010.txt")
     trackeval_path = "src/task2/TrackEval" if args.eval else None
 
@@ -57,11 +60,14 @@ def main():
         run_task21(det_path=args.det_path,
             output_txt_path=output_txt,
             video_path=args.video_path if args.make_video else None,
-            xml_gt_path=args.gt_xml if args.eval else None,
+            xml_gt_path=args.gt_xml_path if args.eval else None,
             iou_threshold=args.iou_thr,
             trackeval_path=trackeval_path,
-            make_video=args.make_video
-        )
+            make_video=args.make_video, 
+            max_age=args.max_age,
+            conf_threshold=args.conf_thr,
+            filter_threshold=args.filter_thr
+        ) 
 
 if __name__ == "__main__":
     main()

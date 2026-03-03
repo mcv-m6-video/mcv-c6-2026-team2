@@ -39,11 +39,11 @@ def convert_xml_to_mot(xml_path, output_txt_path):
             continue 
         
         for box in track.findall('box'):
-            # Remove if it's outside the frame or occluded to get better metrics
-            if box.get('outside') == '1' or box.get('occluded') == '1': 
+            # Remove if it's outside the frame 
+            if box.get('outside') == '1': 
                 continue
             
-            # Note: We keep parked and occluded as they are valid tracking targets, should we change this ?
+            # Note: We keep parked and occluded as they are valid tracking targets
             frame = int(box.get('frame')) + 1
             xtl, ytl = float(box.get('xtl')), float(box.get('ytl'))
             xbr, ybr = float(box.get('xbr')), float(box.get('ybr'))
@@ -80,7 +80,7 @@ def compute_iou(boxA, boxB):
 def filter_duplicates(detections, threshold=0.9):
     """
     Removes redundant bounding boxes in the same frame.
-    If IoU > 0.9, keep the one with higher confidence. 
+    If IoU > threshold, keep the one with higher confidence. 
     """
     if not detections:
         return []
@@ -184,7 +184,7 @@ def run_trackeval_script(trackeval_path, tracker_name="overlap", save_path=None)
         "--BENCHMARK", "AICity",
         "--SPLIT_TO_EVAL", "train",
         "--TRACKERS_TO_EVAL", tracker_name,
-        "--METRICS", "HOTA", "Identity",
+        "--METRICS", "HOTA", "Identity", "CLEAR",
         "--DO_PREPROC", "False",
         "--USE_PARALLEL", "False"
     ]
