@@ -7,28 +7,42 @@ from tqdm import tqdm
 import numpy as np
 import torch
 from datasets import Dataset as HF_Dataset
-
+from torchvision.transforms import ToTensor
+from typing import Literal
 
 class CustomDataset(torch.utils.data.Dataset):
     PATH_KEY = "img_path"
     ANNO_KEY = "annotations"
     CATEGORIES = {0: "LOG", 1: "WARNING"}
+    LABEL2ID = {"car": 3}
 
     def __init__(
         self,
         data_path: str,
         annotations_path: str,
+        split: Literal["train", "eval"] = "train",
         images_folder: str = None,
         transforms: any = None,
         hf: bool = False,
         log_level: int = 1,
     ):
+        self.split = split
         self.log_level = log_level
         self.transforms = transforms
         self.hf = hf
         self.data = self._load_data(
             data_path, annotations_path, images_folder=images_folder
         )
+
+        # Get split
+        if split == "train":
+            start_split = 0
+            end_split = int(len(self.data) * 0.25)
+        else:
+            start_split = int(len(self.data) * 0.25)
+            end_split = len(self.data)
+
+        self.data = [self.data[idx] for idx in range(start_split, end_split)]
 
         if self.hf:
             self.data = self._convert_to_hf_format(self.data)
@@ -111,19 +125,19 @@ class CustomDataset(torch.utils.data.Dataset):
                         parked = True
                         break
 
-                image_path = os.path.join(data_path, f"{frame:04d}.png")
+                image_path = os.path.join(data_path, f"{frame:04d}.jpg")
 
-                x = float(box.get("xtl"))
-                y = float(box.get("ytl"))
-                w = float(box.get("xbr")) - x
-                h = float(box.get("ybr")) - y
+                x_min = float(box.get("xtl"))
+                y_min = float(box.get("ytl"))
+                x_max = float(box.get("xbr"))
+                y_max = float(box.get("ybr"))
 
                 annotation = {
                     "track_id": track_id,
                     "frame": frame,
-                    "label": label,
+                    "label": self.LABEL2ID[label],
                     "parked": parked,
-                    "bbox": np.array([x, y, w, h]),
+                    "bbox": np.array([x_min, y_min, x_max, y_max]),
                 }
 
                 dataset_dict[frame][self.PATH_KEY] = image_path
@@ -138,7 +152,7 @@ class CustomDataset(torch.utils.data.Dataset):
         for frame_idx, info in tqdm(data_dict.items(), total=len(data_dict)):
             bboxes = [anno["bbox"] for anno in info[self.ANNO_KEY]]
             labels = [anno["bbox"] for anno in info[self.ANNO_KEY]]
-            areas = [b[2] * b[3] for b in bboxes]
+            areas = [(b[2] - b[0]) * (b[3] - b[1]) for b in bboxes]
 
             hf_data.append(
                 {
@@ -169,10 +183,45 @@ class CustomDataset(torch.utils.data.Dataset):
             self.log("Dataset is parsed for HF. Format may be incorrect.", 1)
         image_path = self.data[idx][self.PATH_KEY]
         image = Image.open(image_path)
+        image = np.array(image, dtype=np.float32) / 255.0
 
-        annotation = self.data[idx][self.ANNO_KEY]
+        boxes = []
+        labels = []
+        areas = []
 
-        return image, annotation
+        annotations = self.data[idx][self.ANNO_KEY]
+        for anno in annotations:
+            boxes.append(anno["bbox"])
+            labels.append(anno["label"])
+            width = anno["bbox"][2] - anno["bbox"][0]
+            height = anno["bbox"][3] - anno["bbox"][1]
+            areas.append(width * height)
+        
+        # boxes = np.array(boxes)
+        # labels = np.array(labels)
+        # areas = np.array(areas)
+
+        if self.transforms:
+            transformed = self.transforms(image=np.array(image), bboxes=boxes, labels=labels)
+            image = transformed["image"]
+            boxes = transformed["bboxes"]
+            labels = transformed["labels"]
+        
+        target = {}
+        if len(boxes) == 0:
+            target["boxes"] = torch.empty((0, 4), dtype=torch.float32)
+            target["labels"] = torch.empty((0,), dtype=torch.int64)
+            target["area"] = torch.empty((0,), dtype=torch.float32)
+        else:
+            target["boxes"] = torch.as_tensor(boxes, dtype=torch.float32)
+            target["labels"] = torch.as_tensor(labels, dtype=torch.int64)
+            b = target["boxes"]
+            target["area"] = (b[:, 2] - b[:, 0]) * (b[:, 3] - b[:, 1])
+
+        target["image_id"] = torch.tensor([idx])
+        target["iscrowd"] = torch.zeros((len(labels),), dtype=torch.int64)
+
+        return image, target
 
 
 if __name__ == "__main__":

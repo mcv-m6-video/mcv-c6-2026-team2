@@ -1,12 +1,12 @@
 import os
 from src.task2.overlap_tracker import OverlapTracker
-from src.task2.utils import load_maskrcnn_detections, filter_duplicates, convert_xml_to_mot, run_trackeval_script, create_tracking_video, prepare_trackeval_folders
+from src.task2.utils import load_detections, filter_duplicates, convert_xml_to_mot, run_trackeval_script, create_tracking_video, prepare_trackeval_folders
 
 def run_task21(det_path, output_txt_path, video_path=None, xml_gt_path=None, trackeval_path=None, make_video=False, iou_threshold=0.4):
     """
     Main execution for Task 2.1: Tracking by Maximum Overlap.
     """
-    all_detections = load_maskrcnn_detections(det_path)
+    all_detections = load_detections(det_path)
     
     tracker = OverlapTracker(iou_threshold=iou_threshold)
     all_results = []
