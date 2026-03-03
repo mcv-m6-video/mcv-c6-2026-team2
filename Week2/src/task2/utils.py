@@ -148,6 +148,34 @@ def create_tracking_video(video_path, results_path, output_video_path,
     """
     print("Generating video...")
 
+    def draw_label(frame, x, y, text,
+                   bg_color=(0, 0, 255),
+                   text_color=(255, 255, 255),
+                   font=cv2.FONT_HERSHEY_SIMPLEX,
+                   font_scale=0.75,
+                   thickness=2,
+                   pad=4):
+
+        (tw, th), baseline = cv2.getTextSize(text, font, font_scale, thickness)
+
+        H, W = frame.shape[:2]
+
+        x = max(0, min(x, W - tw - 2*pad))
+        y = max(th + baseline + 2*pad, min(y, H - 2))
+
+        x1 = x
+        y1 = y - th - baseline - 2*pad
+        x2 = x + tw + 2*pad
+        y2 = y
+
+        cv2.rectangle(frame, (x1, y1), (x2, y2), bg_color, -1)
+
+        cv2.putText(frame, text,
+                    (x + pad, y - baseline - pad),
+                    font, font_scale,
+                    text_color, thickness,
+                    cv2.LINE_AA)
+
     results = {}
     with open(results_path, 'r') as f:
         for line in f:
@@ -188,10 +216,10 @@ def create_tracking_video(video_path, results_path, output_video_path,
                               (int(l+w), int(t+h)),
                               (0, 0, 255), 2)
 
-                cv2.putText(frame, f"ID: {obj_id}",
-                            (int(l), int(t)-10),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.6, (0, 0, 255), 2)
+                draw_label(frame,
+                    int(l),
+                    int(t) - 5,
+                    f"ID {obj_id}")
 
         # Trails
         for obj_id, pts in trails.items():
@@ -217,7 +245,7 @@ def video_to_gif(video_path, output_gif):
         if not ret:
             break
 
-        frame = cv2.resize(frame, (700, 350))
+        frame = cv2.resize(frame, (800, 450))
 
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         frames.append(frame)
