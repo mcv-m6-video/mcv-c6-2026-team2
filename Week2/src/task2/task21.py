@@ -1,6 +1,6 @@
 import os
 from src.task2.overlap_tracker import OverlapTracker
-from src.task2.utils import load_detections, filter_duplicates, convert_xml_to_mot, run_trackeval_script, create_tracking_video, prepare_trackeval_folders
+from src.task2.utils import load_detections, filter_duplicates, convert_xml_to_mot, run_trackeval_script, create_tracking_video, prepare_trackeval_folders, video_to_gif
 
 def run_task21(det_path,
                output_txt_path,
@@ -77,6 +77,8 @@ def run_task21(det_path,
     # Video
     if video_path and make_video:
         video_out = output_txt_path.replace(".txt", "_viz.mp4")
-        create_tracking_video(video_path, output_txt_path, video_out)
+        gif_out = output_txt_path.replace(".txt", ".gif")
+        create_tracking_video(video_path, output_txt_path, video_out, start_frame=900, end_frame=970)
+        video_to_gif(video_path=video_out, output_gif=gif_out)
 
     return output_txt_path

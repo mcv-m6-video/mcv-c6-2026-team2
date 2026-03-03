@@ -3,6 +3,10 @@ import cv2
 import subprocess
 import os
 import shutil
+import cv2
+from collections import defaultdict, deque
+import numpy as np
+import imageio
 
 def load_detections(file_path):
     """
@@ -98,43 +102,130 @@ def filter_duplicates(detections, threshold=0.9):
 
     return kept_detections
 
-def create_tracking_video(video_path, results_path, output_video_path, max_frames=500):
+# def create_tracking_video(video_path, results_path, output_video_path, max_frames=500):
+#     """
+#     Overlays tracking results (bounding boxes and IDs) onto the video.
+#     """
+#     # Load results into a dict: {frame_id: [[id, x, y, w, h], ...]}
+#     results = {}
+#     with open(results_path, 'r') as f:
+#         for line in f:
+#             p = line.strip().split(',')
+#             f_id, obj_id, l, t, w, h = int(p[0]), int(p[1]), float(p[2]), float(p[3]), float(p[4]), float(p[5])
+#             if f_id not in results: results[f_id] = []
+#             results[f_id].append([obj_id, l, t, w, h])
+
+#     cap = cv2.VideoCapture(video_path)
+#     width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+#     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+#     fps    = int(cap.get(cv2.CAP_PROP_FPS))
+    
+#     out = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
+
+#     frame_idx = 1
+#     while cap.isOpened() and frame_idx <= max_frames:
+#         ret, frame = cap.read()
+#         if not ret: break
+        
+#         if frame_idx in results:
+#             for res in results[frame_idx]:
+#                 obj_id, l, t, w, h = res
+#                 # Draw box and ID
+#                 cv2.rectangle(frame, (int(l), int(t)), (int(l+w), int(t+h)), (0, 255, 0), 2)
+#                 cv2.putText(frame, f"ID: {obj_id}", (int(l), int(t)-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        
+#         out.write(frame)
+#         frame_idx += 1
+
+#     cap.release()
+#     out.release()
+
+def create_tracking_video(video_path, results_path, output_video_path,
+                          start_frame=1, end_frame=500):
     """
-    Overlays tracking results (bounding boxes and IDs) onto the video.
+    Overlays tracking results (bounding boxes, IDs and track trails) onto
+    the video between start_frame and end_frame.
     """
-    # Load results into a dict: {frame_id: [[id, x, y, w, h], ...]}
+    print("Generating video...")
+
     results = {}
     with open(results_path, 'r') as f:
         for line in f:
             p = line.strip().split(',')
-            f_id, obj_id, l, t, w, h = int(p[0]), int(p[1]), float(p[2]), float(p[3]), float(p[4]), float(p[5])
-            if f_id not in results: results[f_id] = []
-            results[f_id].append([obj_id, l, t, w, h])
+            f_id = int(p[0])
+            obj_id = int(p[1])
+            l, t, w, h = map(float, p[2:6])
+            results.setdefault(f_id, []).append([obj_id, l, t, w, h])
 
     cap = cv2.VideoCapture(video_path)
+
     width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps    = int(cap.get(cv2.CAP_PROP_FPS))
-    
-    out = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
 
-    frame_idx = 1
-    while cap.isOpened() and frame_idx <= max_frames:
+    out = cv2.VideoWriter(output_video_path,
+                          cv2.VideoWriter_fourcc(*'mp4v'),
+                          fps, (width, height))
+
+    trails = defaultdict(list)
+
+    cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame - 1)
+
+    frame_idx = start_frame
+
+    while cap.isOpened() and frame_idx <= end_frame:
         ret, frame = cap.read()
-        if not ret: break
-        
+        if not ret:
+            break
+
         if frame_idx in results:
-            for res in results[frame_idx]:
-                obj_id, l, t, w, h = res
-                # Draw box and ID
-                cv2.rectangle(frame, (int(l), int(t)), (int(l+w), int(t+h)), (0, 255, 0), 2)
-                cv2.putText(frame, f"ID: {obj_id}", (int(l), int(t)-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-        
+            for obj_id, l, t, w, h in results[frame_idx]:
+                cx = int(l + w/2)
+                cy = int(t + h/2)
+                trails[obj_id].append((cx, cy))
+
+                cv2.rectangle(frame, (int(l), int(t)),
+                              (int(l+w), int(t+h)),
+                              (0, 0, 255), 2)
+
+                cv2.putText(frame, f"ID: {obj_id}",
+                            (int(l), int(t)-10),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.6, (0, 0, 255), 2)
+
+        # Trails
+        for obj_id, pts in trails.items():
+            if len(pts) >= 2:
+                pts_arr = np.array(pts, dtype=np.int32).reshape((-1, 1, 2))
+                cv2.polylines(frame, [pts_arr], False,
+                              (0, 255, 0), 2)
+
         out.write(frame)
         frame_idx += 1
 
     cap.release()
     out.release()
+
+def video_to_gif(video_path, output_gif):
+    print("Converting to gif...")
+
+    cap = cv2.VideoCapture(video_path)
+    frames = []
+
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        frame = cv2.resize(frame, (700, 350))
+
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        frames.append(frame)
+
+    cap.release()
+
+    imageio.mimsave(output_gif, frames, loop=0)
+
 
 def prepare_trackeval_folders(base_trackeval_path, results_path, gt_path, tracker_name="overlap"):
     """

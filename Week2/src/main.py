@@ -21,9 +21,9 @@ def main():
     parser.add_argument('--make_video', action='store_true', help="Generate visualization video")
     parser.add_argument('--eval', action='store_true', help="Run TrackEval after tracking")
     parser.add_argument('--iou_thr', type=float, default=0.4, help="Minimum IoU required to associate a detection with an existing track.")
-    parser.add_argument('--max_age', type=int, default=5, help="Maximum number of consecutive frames a track is kept alive without being matched.")
-    parser.add_argument('--conf_thr', type=float, default=0.4, help="Minimum detection confidence required to consider a bounding box for tracking.")
-    parser.add_argument('--filter_thr', type=float, default=0.4, help="IoU threshold used to remove duplicate detections within the same frame (NMS-like filtering).")
+    parser.add_argument('--max_age', type=int, default=10, help="Maximum number of consecutive frames a track is kept alive without being matched.")
+    parser.add_argument('--conf_thr', type=float, default=0.6, help="Minimum detection confidence required to consider a bounding box for tracking.")
+    parser.add_argument('--filter_thr', type=float, default=0.5, help="IoU threshold used to remove duplicate detections within the same frame (NMS-like filtering).")
 
     # Task 1.1 args
     parser.add_argument("--model_name", type=str, default="faster-rcnn")
