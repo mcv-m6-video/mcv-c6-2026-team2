@@ -8,11 +8,12 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from src.task2.task21 import run_task21
 from src.task1.evaluate import main as run_task11
 from src.task1.finetune import main as run_task12
+from src.utils.visualization import create_video, gif_selector
 
 def main():
     parser = argparse.ArgumentParser(description="Week 2: Tracking Pipeline - Team 02")
     
-    parser.add_argument('--task', type=str, required=True, choices=['1.1', '1.2', '2.1'], help="Task to run")
+    parser.add_argument('--task', type=str, required=True, choices=['1.1', '1.2', '2.1', 'vidgen', 'gifgen'], help="Task to run")
     
     parser.add_argument('--det_path', type=str, default="Data/AICity_data/train/S03/c010/det/det_mask_rcnn.txt")
     parser.add_argument('--gt_xml', type=str, default="Data/AICity_data/train/S03/c010/ai_challenge_s03_c010-full_annotation.xml")
@@ -29,6 +30,7 @@ def main():
     parser.add_argument("--batch_size", type=int, default=8)
     parser.add_argument("--threshold", type=float, default=0.5)
     parser.add_argument("--output_file", type=str, default="Data/AICity_data/train/S03/c010/det/det_fasterrcnn.txt")
+    parser.add_argument("--checkpoint", type=str, default=None)
     parser.add_argument("--log_wandb", action="store_true")
 
     # Task 1.2 args
@@ -37,6 +39,12 @@ def main():
     parser.add_argument('--eval_steps', type=int, default=1)
     parser.add_argument('--unfreeze_depth', type=int, default=1)
     parser.add_argument('--patience', type=int, default=2)
+
+    # Video and gif generation
+    parser.add_argument('--video_output', type=str, default="results/video.mp4")
+    parser.add_argument('--video_tracking', action="store_true")
+    parser.add_argument('--video_max_frames', type=int, default=500)
+    parser.add_argument('--gif_start_frame', type=int, default=0)
 
     args = parser.parse_args()
 
@@ -51,7 +59,7 @@ def main():
     if args.task == "1.2":
         print("\nRunning Task 1.2")
         run_task12(args)
-
+    
     if args.task == '2.1':
         print("\nRunning Task 2.1")
         run_task21(det_path=args.det_path,
@@ -61,6 +69,25 @@ def main():
             iou_threshold=args.iou_thr,
             trackeval_path=trackeval_path,
             make_video=args.make_video
+        )
+
+    if args.task == "vidgen":
+        print("\nGenerating Video")
+        create_video(
+            video_path=args.video_path,
+            results_path=args.det_path,
+            output_video_path=args.video_output,
+            tracking=args.video_tracking,
+            max_frames=args.video_max_frames
+        )
+    
+    if args.task == "gifgen":
+        print("\nGenerating gif")
+        gif_selector(
+            video_path=args.video_path,
+            output_gif=args.video_output,
+            start_frame=args.gif_start_frame,
+            end_frame=args.gif_start_frame + args.video_max_frames
         )
 
 if __name__ == "__main__":

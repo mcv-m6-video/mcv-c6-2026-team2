@@ -133,6 +133,44 @@ def main(args):
             config=args,
         )
 
+    # Starting eval to see initial state
+    model.eval()
+    metric.reset()
+    for idx, (images, targets) in enumerate(
+        tqdm(eval_loader, desc="Evaluating", total=len(eval_loader))
+    ):
+        images = [img.to(device=device) for img in images]
+
+        with torch.no_grad():
+            prediction = model(images)
+        prediction = filter_predictions(
+            prediction, target_class=3, id2label=id2label, threshold=threshold
+        )
+
+        metric.update(prediction, targets)
+
+    results = metric.compute()
+    pprint(results)
+
+    if log_wandb:
+        metrics_to_log = {
+            "mAP/main": results["map"],
+            "mAP/50": results["map_50"],
+            "mAP/75": results["map_75"],
+            "mAP/class_Car": results["map_per_class"],
+            "mAP/small": results["map_small"],
+            "mAP/medium": results["map_medium"],
+            "mAP/large": results["map_large"],
+            "mAR/Det1": results["mar_1"],
+            "mAR/Det10": results["mar_10"],
+            "mAR/Det100": results["mar_100"],
+            "mAR/small": results["mar_small"],
+            "mAR/medium": results["mar_medium"],
+            "mAR/large": results["mar_large"],
+            "mAR/Det100_class_Car": results["mar_100_per_class"],
+        }
+        wandb.log(metrics_to_log)
+
     best_map = 0
     epochs_no_improve = 0
 
@@ -194,8 +232,7 @@ def main(args):
                         "mAP/main": results["map"],
                         "mAP/50": results["map_50"],
                         "mAP/75": results["map_75"],
-                        "mAP/class_Car": results["map_per_class"][0],
-                        "mAP/class_Pedestrian": results["map_per_class"][1],
+                        "mAP/class_Car": results["map_per_class"],
                         "mAP/small": results["map_small"],
                         "mAP/medium": results["map_medium"],
                         "mAP/large": results["map_large"],
@@ -205,8 +242,7 @@ def main(args):
                         "mAR/small": results["mar_small"],
                         "mAR/medium": results["mar_medium"],
                         "mAR/large": results["mar_large"],
-                        "mAR/Det100_class_Car": results["mar_100_per_class"][0],
-                        "mAR/Det100_class_Pedestrian": results["mar_100_per_class"][1],
+                        "mAR/Det100_class_Car": results["mar_100_per_class"],
                     }
                 )
                 wandb.log(metrics_to_log)
@@ -216,11 +252,11 @@ def main(args):
                 best_map = current_map
                 epochs_no_improve = 0
 
-                os.makedirs(f"checkpoints/{unfreeze_depth}/{lr}", exist_ok=True)
-                torch.save(
-                    model.state_dict(),
-                    f"checkpoints/{unfreeze_depth}/{args.lr}/fasterrcnn_{model_name}_best.pth",
-                )
+                # os.makedirs(f"checkpoints/{unfreeze_depth}/{lr}", exist_ok=True)
+                # torch.save(
+                #     model.state_dict(),
+                #     f"checkpoints/{unfreeze_depth}/{args.lr}/fasterrcnn_{model_name}_best.pth",
+                # )
                 print(f"New Best mAP: {best_map:.4f}. Checkpoint saved.")
             else:
                 epochs_no_improve += 1

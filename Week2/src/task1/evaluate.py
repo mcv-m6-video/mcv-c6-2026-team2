@@ -1,15 +1,18 @@
+from pprint import pprint
+
+import albumentations as A
+import torch
+import wandb
+from albumentations.pytorch import ToTensorV2
 from src.utils.dataset import CustomDataset
 from src.utils.postprocess import filter_predictions, save_prediction_txt
-import torch
 from torch.utils.data import DataLoader
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 from torchvision.models.detection.faster_rcnn import (
-    fasterrcnn_resnet50_fpn_v2,
     FasterRCNN_ResNet50_FPN_V2_Weights,
+    fasterrcnn_resnet50_fpn_v2,
 )
-import wandb
 from tqdm import tqdm
-from pprint import pprint
 
 
 def main(args):
@@ -20,17 +23,21 @@ def main(args):
     batch_size = args.batch_size
     log_wandb = args.log_wandb
     threshold = args.threshold
+    checkpoint = args.checkpoint
     output_file = args.output_file
 
     # Define device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Define transformations
-    transforms = None
+    transforms = A.Compose(
+        [ToTensorV2()],
+        bbox_params=A.BboxParams(format="pascal_voc", label_fields=["labels"]),
+    )
 
     # Load dataset
     eval_dataset = CustomDataset(
-        data_path, annotations_path, transforms=transforms, log_level=1
+        data_path, annotations_path, split="all", transforms=transforms, log_level=1
     )
     eval_dataloader = DataLoader(
         eval_dataset,
@@ -44,6 +51,14 @@ def main(args):
     model = fasterrcnn_resnet50_fpn_v2(
         weights=FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT
     )
+    if checkpoint:
+        checkpoint = torch.load(checkpoint, map_location=device)
+
+        if "model_state_dict" in checkpoint:
+            model.load_state_dict(checkpoint["model_state_dict"])
+        else:
+            model.load_state_dict(checkpoint)
+
     model.to(device=device)
     model.eval()
     """
@@ -57,9 +72,7 @@ def main(args):
         }
     ]
     """
-    id2label = {
-        3: "car"
-    }
+    id2label = {3: "car"}
 
     # Define metrics
     metric = MeanAveragePrecision(
@@ -84,7 +97,9 @@ def main(args):
 
         with torch.no_grad():
             prediction = model(images)
-        prediction = filter_predictions(prediction, target_class=3, id2label=id2label, threshold=threshold)
+        prediction = filter_predictions(
+            prediction, target_class=3, id2label=id2label, threshold=threshold
+        )
 
         for pred, id in zip(prediction, images_id):
             save_prediction_txt(pred, output_file, id, threshold=threshold)
@@ -93,6 +108,23 @@ def main(args):
 
     results = metric.compute()
     pprint(results)
+
+    if log_wandb:
+        metrics_to_log = {
+            "mAP/main": results["map"],          # AP @.50:.95
+            "mAP/50": results["map_50"],         # AP @.50
+            "mAP/75": results["map_75"],         # AP @.75
+            "mAP/small": results["map_small"],
+            "mAP/medium": results["map_medium"],
+            "mAP/large": results["map_large"],
+            "mAR/Det1": results["mar_1"],        # AR
+            "mAR/Det10": results["mar_10"],
+            "mAR/Det100": results["mar_100"],
+            "mAR/small": results["mar_small"],
+            "mAR/medium": results["mar_medium"],
+            "mAR/large": results["mar_large"],
+        }
+        wandb.log(metrics_to_log)
 
 
 if __name__ == "__main__":

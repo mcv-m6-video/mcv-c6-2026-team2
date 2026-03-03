@@ -20,7 +20,7 @@ class CustomDataset(torch.utils.data.Dataset):
         self,
         data_path: str,
         annotations_path: str,
-        split: Literal["train", "eval"] = "train",
+        split: Literal["train", "eval", "all"] = "train",
         images_folder: str = None,
         transforms: any = None,
         hf: bool = False,
@@ -38,11 +38,11 @@ class CustomDataset(torch.utils.data.Dataset):
         if split == "train":
             start_split = 0
             end_split = int(len(self.data) * 0.25)
-        else:
+            self.data = [self.data[idx] for idx in range(start_split, end_split)]
+        elif split == "eval":
             start_split = int(len(self.data) * 0.25)
             end_split = len(self.data)
-
-        self.data = [self.data[idx] for idx in range(start_split, end_split)]
+            self.data = [self.data[idx] for idx in range(start_split, end_split)]
 
         if self.hf:
             self.data = self._convert_to_hf_format(self.data)

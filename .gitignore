@@ -213,3 +213,9 @@ dataset/
 .python-version
 pyproject.toml
 uv.lock
+
+.vscode/
+logs/
+checkpoints/
+results/
+wandb/
