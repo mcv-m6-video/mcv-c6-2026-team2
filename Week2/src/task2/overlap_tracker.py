@@ -3,57 +3,60 @@ from src.task2.utils import compute_iou
 class Track:
     def __init__(self, initial_bbox, track_id):
         self.id = track_id
-        self.bboxes = [initial_bbox] # [x, y, w, h]
-        self.active = True
+        self.bboxes = [initial_bbox]  # [xtl, ytl, xbr, ybr]
+        self.misses = 0
 
     def last_bbox(self):
         return self.bboxes[-1]
 
     def update(self, new_bbox):
         self.bboxes.append(new_bbox)
+        self.misses = 0
 
 class OverlapTracker:
-    def __init__(self, iou_threshold=0.4):
+    def __init__(self, iou_threshold=0.4, max_age=5, conf_threshold=0.5):
         self.iou_threshold = iou_threshold
+        self.max_age = max_age
+        self.conf_threshold = conf_threshold
         self.active_tracks = []
         self.next_id = 0
 
     def update(self, new_detections):
-        """
-        Main logic for Task 2.1: Maximum Overlap Association.
-        """
-        matched_indices = set()
-        updated_active_tracks = []
+        # Filter per confidence
+        detections = [d for d in new_detections if d[4] >= self.conf_threshold]
 
-        # Compare active tracks from frame N to detections in frame N+1 
+        matched_indices = set()
+        updated_tracks = []
+
+        # Match existent tracks
         for track in self.active_tracks:
-            best_iou = -1
-            best_det_idx = -1
-            
-            for i, det in enumerate(new_detections):
-                if i in matched_indices: continue
-                
-                # Bbox format expected: [xtl, ytl, xbr, ybr]
-                current_iou = compute_iou(track.last_bbox(), det[:4])
-                if current_iou > best_iou:
-                    best_iou = current_iou
+            best_iou = 0
+            best_det_idx = None
+
+            for i, det in enumerate(detections):
+                if i in matched_indices:
+                    continue
+
+                iou = compute_iou(track.last_bbox(), det[:4])
+                if iou > best_iou:
+                    best_iou = iou
                     best_det_idx = i
 
-            # If max IoU >= threshold, assign existing track ID 
-            if best_iou >= self.iou_threshold:
-                track.update(new_detections[best_det_idx][:4])
+            if best_det_idx is not None and best_iou >= self.iou_threshold:
+                track.update(detections[best_det_idx][:4])
                 matched_indices.add(best_det_idx)
-                updated_active_tracks.append(track)
+                updated_tracks.append(track)
             else:
-                # If no match is found, the track becomes inactive
-                track.active = False
+                track.misses += 1
+                if track.misses <= self.max_age:
+                    updated_tracks.append(track)
 
-        # Create new tracks for unmatched detections 
-        for i, det in enumerate(new_detections):
+        # Create new tracks
+        for i, det in enumerate(detections):
             if i not in matched_indices:
                 new_track = Track(det[:4], self.next_id)
-                updated_active_tracks.append(new_track)
+                updated_tracks.append(new_track)
                 self.next_id += 1
-                
-        self.active_tracks = updated_active_tracks
+
+        self.active_tracks = updated_tracks
         return self.active_tracks

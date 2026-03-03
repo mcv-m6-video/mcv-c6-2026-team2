@@ -1,0 +1,22 @@
+experiment:
+  name: "grid_search"
+  output_dir: "results/grid_search/fasterrcnn"
+
+data:
+  det_path: "Data/AICity_data/train/S03/c010/det/det_fasterrcnn.txt"
+  video_path: "Data/AICity_data/train/S03/c010/vdo.avi"
+  gt_xml_path: "Data/AICity_data/train/S03/c010/ai_challenge_s03_c010-full_annotation.xml"
+  trackeval_path: "src/task2/TrackEval"
+
+tracking:
+  method: "overlap"
+
+  # Grid search parameters
+  iou_threshold: [0.2, 0.3, 0.4, 0.5]
+  max_age: [0, 1, 3, 5, 10, 15]
+  conf_threshold: [0.3, 0.4, 0.5, 0.6, 0.7]
+  duplicate_iou_threshold: [0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+
+evaluation: 
+  metrics: ["HOTA", "Identity", "CLEAR"]
+  save_metrics: true
