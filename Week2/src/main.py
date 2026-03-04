@@ -12,17 +12,22 @@ import yaml
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+from src.task2.task21 import run_task21
+from src.task1.evaluate import main as run_task11
+from src.task1.finetune import main as run_task12
+from src.task1.kfoldcrossval import main as  run_task13
+from src.utils.visualization import create_video, gif_selector
 
 def main():
     parser = argparse.ArgumentParser(description="Week 2: Tracking Pipeline - Team 02")
     
-    parser.add_argument('--task', type=str, required=True, choices=['1.1', '1.2', '2.1', 'vidgen', 'gifgen', 'xml2txt'], help="Task to run")
+    parser.add_argument('--task', type=str, required=True, choices=['1.1', '1.2', '1.3', '2.1', 'vidgen', 'gifgen', 'xml2txt'], help="Task to run")
     
     parser.add_argument("--config", type=str, default=None)
 
     parser.add_argument('--det_path', type=str, default="Data/AICity_data/train/S03/c010/det/det_fasterrcnn.txt")
-    parser.add_argument('--gt_xml_path', type=str, default="Data/AICity_data/train/S03/c010/ai_challenge_s03_c010-full_annotation.xml")
-    parser.add_argument('--video_path', type=str, default="Data/AICity_data/train/S03/c010/vdo.avi")
+    parser.add_argument('--gt_xml_path', type=str, default="/DATA/home/jgarcia/SpectralSegmentation/mcv-c6-2026-team2/Week 1/Data/AICity_data/train/S03/c010/ai_challenge_s03_c010-full_annotation.xml")
+    parser.add_argument('--video_path', type=str, default="/DATA/home/jgarcia/SpectralSegmentation/mcv-c6-2026-team2/Week 1/Data/AICity_data/train/S03/c010/vdo.avi")
     
     parser.add_argument('--make_video', action='store_true', help="Generate visualization video")
     parser.add_argument('--eval', action='store_true', help="Run TrackEval after tracking")
@@ -51,6 +56,9 @@ def main():
     parser.add_argument('--eval_steps', type=int, default=1)
     parser.add_argument('--unfreeze_depth', type=int, default=1)
     parser.add_argument('--patience', type=int, default=2)
+
+    # Task 1.3 args
+    parser.add_argument('--strategy', type=str, default="c", choices=["b", "c"], help="Cross-validation strategy to use for evaluation (kfold or holdout)")
 
     # Task 2.2 args (Kalman Filter)
     parser.add_argument('--preprocess', action='store_true',
@@ -87,6 +95,10 @@ def main():
     if args.task == "1.2":
         print("\nRunning Task 1.2")
         run_task12(args)
+    
+    if args.task == "1.3":
+        print("\nRunning Task 1.3")
+        run_task13(args)
 
     if args.task == '2.1':
         print("\nRunning Task 2.1")
