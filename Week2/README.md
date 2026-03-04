@@ -47,7 +47,7 @@ The Week2 directory is organized as follows:
 Week2/
 ├── src/
 │   ├── main.py         # Entry point of Week 2
-│   ├── utils.py        # Shared helper functions used across tasks
+│   ├── utils/          # Shared helper functions used across tasks
 │   ├── task1/          # Code for Task 1
 │   └── task2/          # Code for Task 2
 ├── config/             # Config files 
@@ -90,7 +90,10 @@ python -m src.main \
   --video path/to/video.avi \
   --annotations path/to/annotations.xml
 ``` 
-Hyperparameters can also be passed manually.
+Hyperparameters can also be passed manually. 
+
+> **Note:** Task **2.3 (IDF1 & HOTA evaluation)** does not have a standalone command.  
+> It runs internally when executing **Task 2.1** or **Task 2.2** with the `--eval` flag.
 
 ## Task 1
 
@@ -112,6 +115,7 @@ For each new frame:
 2. **Duplicate removal:** Within each frame we remove duplicated detections using an IoU threshold (`filter_threshold`). When two detections overlap strongly, only the most confident one is kept.
 
 3. **Track association:** Each active track searches for the detection with the highest IoU with its most recent bounding box.
+
     - If the IoU is greater than `iou_threshold`, the detection is assigned to the track.
 
     - Otherwise the track is considered unmatched for that frame.
@@ -163,7 +167,6 @@ These parameters control the balance between track stability and track fragmenta
 - Track identity can be lost when objects cross
 
 These limitations motivate the use of motion models, which are introduced in Task 2.2.
-
 
 ## Task 2.2 - Kalman Filter Tracker (SORT)
 
@@ -264,3 +267,9 @@ Compared to the maximum overlap tracker, the Kalman filter tracker provides seve
 Because of these properties, SORT is widely used as a strong baseline in multi-object tracking benchmarks.
 
 ## Task 2.3 - Evaluation with IDF1 and HOTA from TrackEval
+
+To evaluate the tracking performance we use two standard metrics from TrackEval: **IDF1** and **HOTA**.
+
+**IDF1 (Identification F1 Score)** measures how well the tracker preserves object identities over time. It is the harmonic mean of identification precision and recall, and penalizes identity switches and track fragmentation.
+
+**HOTA (Higher Order Tracking Accuracy)** evaluates both detection quality and identity association simultaneously. It combines detection accuracy and association accuracy, providing a balanced measure of overall tracking performance.
