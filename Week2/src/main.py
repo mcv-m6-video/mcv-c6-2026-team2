@@ -7,6 +7,7 @@ import argparse
 import os
 import sys
 import numpy as np
+import yaml
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -15,7 +16,9 @@ def main():
     parser = argparse.ArgumentParser(
         description="Week 2: Tracking Pipeline - Team 02")
 
-    parser.add_argument('--task', type=str, required=True,
+    parser.add_argument("--config", type=str, default=None)
+
+    parser.add_argument('--task', type=str, 
                         choices=['1.1', '1.2', '2.1', '2.2', 'vidgen', 'gifgen'], help="Task to run")
 
     parser.add_argument('--det_path', type=str,
@@ -70,6 +73,17 @@ def main():
     parser.add_argument('--gif_start_frame', type=int, default=0)
 
     args = parser.parse_args()
+
+    if args.config:
+        with open(args.config, "r") as f:
+            yaml_config = yaml.safe_load(f)
+
+        # 4. Overwrite the parser defaults with YAML values
+        # This keeps the command line flags as the highest priority
+        parser.set_defaults(**yaml_config)
+
+        # 5. Re-parse to finalize the values
+        args = parser.parse_args()
 
     output_folder = f"results/task{args.task.replace('.', '')}/fasterrcnn/"
     output_txt = os.path.join(output_folder, "data/s03c010.txt")
