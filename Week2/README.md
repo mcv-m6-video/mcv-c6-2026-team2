@@ -95,4 +95,172 @@ Hyperparameters can also be passed manually.
 ## Task 1
 
 
-## Task 2
+## Task 2.1 - Maximum Overlap Tracker
+
+The Maximum Overlap tracker is a simple greedy tracking strategy that associates detections across frames based on Intersection over Union (IoU) between bounding boxes.
+
+The algorithm maintains a list of active tracks, each storing the history of bounding boxes associated with a given object. For every new frame, detections are matched to existing tracks using the detection that maximizes the IoU with the last bounding box of the track.
+
+This method is computationally inexpensive and serves as a strong baseline for multi-object tracking.
+
+### Tracking Procedure
+
+For each new frame:
+
+1. **Detection filtering**: Detections are first filtered according to their confidence score: `score ≥ conf_threshold`. This removes low-confidence detections that are likely to correspond to noise.
+
+2. **Duplicate removal:** Within each frame we remove duplicated detections using an IoU threshold (`filter_threshold`). When two detections overlap strongly, only the most confident one is kept.
+
+3. **Track association:** Each active track searches for the detection with the highest IoU with its most recent bounding box.
+    - If the IoU is greater than `iou_threshold`, the detection is assigned to the track.
+
+    - Otherwise the track is considered unmatched for that frame.
+
+4. **Track update:**
+
+    - Matched tracks append the new bounding box to their history.
+
+    - Unmatched tracks increase a miss counter.
+
+5. **Track creation:** Any detection that is not assigned to an existing track initializes a new track.
+
+6. **Track deletion:** Tracks that remain unmatched for more than `max_age` frames are removed.
+
+
+### Hyperparameters
+
+The main parameters controlling the behaviour of the tracker are:
+
+- `iou_threshold`:	Minimum IoU required to associate a detection with an existing track
+- `max_age`:	Maximum number of frames a track can survive without being matched
+- `conf_threshold`:	Minimum detection confidence to be considered
+- `filter_threshold`:	IoU threshold used to remove duplicate detections
+
+These parameters control the balance between track stability and track fragmentation.
+
+- Higher IoU thresholds produce more conservative associations but may fragment tracks.
+
+- Higher max_age allows tracks to survive temporary occlusions but may increase identity switches.
+
+### Strengths and Limitations
+
+#### Advantages
+
+- Extremely simple and fast
+
+- Works well when detections are stable
+
+- Easy to interpret and debug
+
+#### Limitations
+
+- Cannot predict object motion
+
+- Struggles under occlusion
+
+- Sensitive to detection noise
+
+- Track identity can be lost when objects cross
+
+These limitations motivate the use of motion models, which are introduced in Task 2.2.
+
+
+## Task 2.2 - Kalman Filter Tracker (SORT)
+
+In Task 2.2 we adapted an implementation from Alex Bewley of a Kalman Filter-based tracker following the SORT (Simple Online and Realtime Tracking) framework.
+
+SORT extends the previous approach by incorporating a motion model that predicts the future position of objects. This prediction improves the robustness of data association and allows tracks to survive short detection failures.
+
+The tracker combines three main components:
+
+1. Kalman filter motion model
+
+2. IoU-based data association
+
+3. Hungarian assignment algorithm
+
+### Kalman Filter Motion Model
+
+Each object track is modeled using a constant velocity motion model.
+
+The Kalman filter state vector is defined as:
+
+```bash
+[x, y, s, r, vx, vy, vs]
+```
+
+Where:
+
+- `x, y` → center of the bounding box
+
+- `s` → bounding box scale (area)
+
+- `r` → aspect ratio
+
+- `vx, vy, vs` → velocities of the corresponding quantities
+
+At every frame the Kalman filter performs two steps:
+
+#### Prediction
+
+The tracker predicts the new state of each object using the motion model:
+
+```bash
+x_k = F x_{k-1}
+```
+
+This produces a predicted bounding box even if the object was not detected in the current frame.
+
+#### Update
+
+If a detection is associated with the track, the Kalman filter updates its estimate using the observed bounding box.
+
+### Data Association
+
+After predicting the position of all tracks, the algorithm associates detections with predicted tracks.
+
+1. **IoU matrix computation:** The Intersection over Union is computed between every detection and every predicted track.
+
+2. **Assignment with Hungarian algorithm:** The optimal assignment between detections and tracks is obtained using the Hungarian algorithm, which maximizes the total IoU.
+
+3. **Association filtering:** Matches with IoU below iou_threshold are discarded.
+
+### Track Lifecycle
+
+Tracks follow the same general lifecycle as in Task 2.1:
+
+- Matched tracks update their Kalman state
+
+- Unmatched detections create new tracks
+
+- Unmatched tracks increase a miss counter
+
+- Tracks are removed when `time_since_update > max_age`
+
+Additionally, SORT introduces a parameter `min_hits`, which controls when a track becomes confirmed and is allowed to be reported.
+
+
+### Hyperparameters
+
+The main parameters used by the Kalman tracker are:
+
+- `iou_threshold`:	Minimum IoU required for detection-track association
+- `max_age`:	Maximum number of frames a track can remain unmatched
+- `min_hits`:	Minimum number of successful matches before a track is confirmed
+- `conf_threshold`:	Detection confidence filtering
+- `filter_threshold`:	Duplicate detection removal threshold
+
+
+### Advantages of Kalman-Based Tracking
+
+Compared to the maximum overlap tracker, the Kalman filter tracker provides several improvements:
+
+- Motion prediction allows tracks to persist when detections are temporarily missing.
+
+- More robust association when objects move between frames.
+
+- Reduced track fragmentation.
+
+Because of these properties, SORT is widely used as a strong baseline in multi-object tracking benchmarks.
+
+## Task 2.3 - Evaluation with IDF1 and HOTA from TrackEval
