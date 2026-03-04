@@ -87,15 +87,21 @@ You can also run a single configuration directly from the terminal:
 ```bash
 python -m src.main \
   --task taskX \
-  --video path/to/video.avi \
-  --annotations path/to/annotations.xml
+  --video_path path/to/video.avi \
+  --gt_xml_path path/to/annotations.xml
 ``` 
 Hyperparameters can also be passed manually. 
 
 > **Note:** Task **2.3 (IDF1 & HOTA evaluation)** does not have a standalone command.  
 > It runs internally when executing **Task 2.1** or **Task 2.2** with the `--eval` flag.
 
-## Task 1
+## Task 1.1
+We chose the Faster R-CNN model implementation of Torchvision with the pretrained resnet50 weights. In this first task we reached a mAP@50 of 0.3735, with a fixed threshold of 0.5.
+
+## Task 1.2
+The backbone was frozen and only the prediction head was fine-tuned. The hyperparameters used can be found in the config file for this task./ After just 1 epoch, mAP@50 reached 0,9498, and in the end it achieved a 0,9602 in that metric.
+
+## Task 1.3
 
 
 ## Task 2.1 - Maximum Overlap Tracker
