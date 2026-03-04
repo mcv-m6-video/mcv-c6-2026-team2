@@ -26,7 +26,7 @@ The work for Week 2 is structured according to the project tasks:
   Adapt a pre-trained model to the project sequence using transfer learning.
 
 - **Task 1.3: K-Fold Cross validation:**
-  Implement robust validation strategies (Fixed and Random folds) to ensure model generalization.
+  Evaluate the detector using K=4 cross-validation with two strategies: sequential folds that preserve the temporal structure of the video, and random folds that mix frames from the entire sequence.
 
 **Task 2: Object Tracking**
 - **Task 2.1: Tracking by overlap:**  
