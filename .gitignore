@@ -117,6 +117,9 @@ ipython_config.py
 .pdm-python
 .pdm-build/
 
+/DATA/home/jgarcia/SpectralSegmentation/mcv-c6-2026-team2/Week1/task1/alpha_gifs/
+/DATA/home/jgarcia/SpectralSegmentation/mcv-c6-2026-team2/Week1/task1/alpha_grid_results
+
 # pixi
 #   Similar to Pipfile.lock, it is generally recommended to include pixi.lock in version control.
 #pixi.lock

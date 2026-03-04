@@ -6,8 +6,8 @@ from collections import defaultdict
 from tqdm import tqdm
 import numpy as np
 import torch
-from datasets import Dataset as HF_Dataset
-from torchvision.transforms import ToTensor
+# from datasets import Dataset as HF_Dataset
+# from torchvision.transforms import ToTensor
 from typing import Literal
 
 class CustomDataset(torch.utils.data.Dataset):
@@ -145,35 +145,35 @@ class CustomDataset(torch.utils.data.Dataset):
         self.log("Finished loading dataset!", 0)
         return dict(dataset_dict)
 
-    def _convert_to_hf_format(self, data_dict: dict):
-        self.log("Formatting dataset for HF compatibility.", 0)
-        hf_data = []
+    # def _convert_to_hf_format(self, data_dict: dict):
+    #     self.log("Formatting dataset for HF compatibility.", 0)
+    #     hf_data = []
 
-        for frame_idx, info in tqdm(data_dict.items(), total=len(data_dict)):
-            bboxes = [anno["bbox"] for anno in info[self.ANNO_KEY]]
-            labels = [anno["bbox"] for anno in info[self.ANNO_KEY]]
-            areas = [(b[2] - b[0]) * (b[3] - b[1]) for b in bboxes]
+    #     for frame_idx, info in tqdm(data_dict.items(), total=len(data_dict)):
+    #         bboxes = [anno["bbox"] for anno in info[self.ANNO_KEY]]
+    #         labels = [anno["bbox"] for anno in info[self.ANNO_KEY]]
+    #         areas = [(b[2] - b[0]) * (b[3] - b[1]) for b in bboxes]
 
-            hf_data.append(
-                {
-                    "image_id": int(frame_idx),
-                    "image": info[self.PATH_KEY],
-                    "objects": {
-                        "id": [int(anno["frame"]) for anno in info[self.ANNO_KEY]],
-                        "area": areas,
-                        "bbox": bboxes,
-                        "category": labels,
-                    },
-                }
-            )
+    #         hf_data.append(
+    #             {
+    #                 "image_id": int(frame_idx),
+    #                 "image": info[self.PATH_KEY],
+    #                 "objects": {
+    #                     "id": [int(anno["frame"]) for anno in info[self.ANNO_KEY]],
+    #                     "area": areas,
+    #                     "bbox": bboxes,
+    #                     "category": labels,
+    #                 },
+    #             }
+    #         )
 
-        return hf_data
+    #     return hf_data
 
-    def get_hf_dataset(self):
-        if not self.hf:
-            self.log("Dataset is not parsed for HF. Format may be incorrect.", 1)
+    # def get_hf_dataset(self):
+    #     if not self.hf:
+    #         self.log("Dataset is not parsed for HF. Format may be incorrect.", 1)
 
-        return HF_Dataset.from_list(self.data)
+    #     return HF_Dataset.from_list(self.data)
 
     def __len__(self):
         return len(self.data)
