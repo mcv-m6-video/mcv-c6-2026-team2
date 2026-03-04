@@ -25,6 +25,7 @@ def main(args):
     threshold = args.threshold
     checkpoint = args.checkpoint
     output_file = args.output_file
+    split = args.split
 
     # Define device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -37,7 +38,7 @@ def main(args):
 
     # Load dataset
     eval_dataset = CustomDataset(
-        data_path, annotations_path, split="all", transforms=transforms, log_level=1
+        data_path, annotations_path, split=split, transforms=transforms, log_level=1
     )
     eval_dataloader = DataLoader(
         eval_dataset,

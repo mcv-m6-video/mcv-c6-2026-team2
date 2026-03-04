@@ -4,16 +4,9 @@ import cv2
 import imageio
 import numpy as np
 
-
-def create_video(
-    video_path, results_path, output_video_path, max_frames=500, tracking=False
-):
-    """
-    Overlays tracking results (bounding boxes and IDs) onto the video.
-    """
-    # Load results into a dict: {frame_id: [[id, x, y, w, h], ...]}
+def read_txt(path):
     results = {}
-    with open(results_path, "r") as f:
+    with open(path, "r") as f:
         for line in f:
             p = line.strip().split(",")
             f_id, obj_id, l, t, w, h = (
@@ -27,6 +20,35 @@ def create_video(
             if f_id not in results:
                 results[f_id] = []
             results[f_id].append([obj_id, l, t, w, h])
+    return results
+
+def draw_bbox(image, info, tracking, color="green"):
+    obj_id, l, t, w, h = info
+    # Draw box and ID
+    cv2.rectangle(
+        image, (int(l), int(t)), (int(l + w), int(t + h)), color, 2
+    )
+    if tracking:
+        cv2.putText(
+            image,
+            f"ID: {obj_id}",
+            (int(l), int(t) - 10),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            color,
+            2,
+        )
+
+def create_video(
+    video_path, results_path, output_video_path, max_frames=500, tracking=False, gt_path=None
+):
+    """
+    Overlays tracking results (bounding boxes and IDs) onto the video.
+    """
+    # Load results into a dict: {frame_id: [[id, x, y, w, h], ...]}
+    results = read_txt(results_path)
+    if gt_path:
+        gt = read_txt(gt_path)
 
     os.makedirs(os.path.dirname(output_video_path), exist_ok=True)
     cap = cv2.VideoCapture(video_path)
@@ -45,22 +67,12 @@ def create_video(
             break
 
         if frame_idx in results:
+            if gt_path:
+                for res in gt[frame_idx]:
+                    draw_bbox(frame, res, color=(0,0,255), tracking=tracking)
             for res in results[frame_idx]:
-                obj_id, l, t, w, h = res
-                # Draw box and ID
-                cv2.rectangle(
-                    frame, (int(l), int(t)), (int(l + w), int(t + h)), (0, 255, 0), 2
-                )
-                if tracking:
-                    cv2.putText(
-                        frame,
-                        f"ID: {obj_id}",
-                        (int(l), int(t) - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.6,
-                        (0, 255, 0),
-                        2,
-                    )
+                draw_bbox(frame, res, color=(0,255,0), tracking=tracking)
+
 
         out.write(frame)
         frame_idx += 1
