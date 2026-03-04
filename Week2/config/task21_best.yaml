@@ -1,0 +1,13 @@
+task: "2.1"
+
+det_path: "Data/AICity_data/train/S03/c010/det/det_fasterrcnn.txt"
+gt_xml_path: "Data/AICity_data/train/S03/c010/ai_challenge_s03_c010-full_annotation.xml"
+video_path: "Data/AICity_data/train/S03/c010/vdo.avi"
+
+make_video: true
+eval: true
+
+iou_thr: 0.4
+max_age: 10
+conf_thr: 0.6
+filter_thr: 0.5
