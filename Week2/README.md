@@ -25,8 +25,7 @@ The work for Week 2 is structured according to the project tasks:
 - **Task 1.2: Fine-tuning:**  
   Adapt a pre-trained model to the project sequence using transfer learning.
 
-- **Task 1.3: K-Fold Cross validation:**
-  
+- **Task 1.3: K-Fold Cross validation:**  
   Evaluate the detector using K=4 cross-validation with two strategies: sequential folds that preserve the temporal structure of the video, and random folds that mix frames from the entire sequence.
 
 **Task 2: Object Tracking**
