@@ -1,6 +1,7 @@
 from src.utils.visualization import create_video, gif_selector
 from src.task1.finetune import main as run_task12
 from src.task1.evaluate import main as run_task11
+from src.task1.kfoldcrossval import main as  run_task13
 from src.task2.kalman_filter import main as run_task22
 from src.task2.task21 import run_task21
 from src.task2.utils import convert_xml_to_mot
@@ -11,12 +12,6 @@ import numpy as np
 import yaml
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-from src.task2.task21 import run_task21
-from src.task1.evaluate import main as run_task11
-from src.task1.finetune import main as run_task12
-from src.task1.kfoldcrossval import main as  run_task13
-from src.utils.visualization import create_video, gif_selector
 
 def main():
     parser = argparse.ArgumentParser(description="Week 2: Tracking Pipeline - Team 02")
