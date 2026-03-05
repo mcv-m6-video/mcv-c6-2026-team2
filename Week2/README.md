@@ -25,8 +25,8 @@ The work for Week 2 is structured according to the project tasks:
 - **Task 1.2: Fine-tuning:**  
   Adapt a pre-trained model to the project sequence using transfer learning.
 
-- **Task 1.3: K-Fold Cross validation:**
-  Implement robust validation strategies (Fixed and Random folds) to ensure model generalization.
+- **Task 1.3: K-Fold Cross validation:**  
+  Evaluate the detector using K=4 cross-validation with two strategies: sequential folds that preserve the temporal structure of the video, and random folds that mix frames from the entire sequence.
 
 **Task 2: Object Tracking**
 - **Task 2.1: Tracking by overlap:**  
@@ -101,8 +101,10 @@ We chose the Faster R-CNN model implementation of Torchvision with the pretraine
 ## Task 1.2
 The backbone was frozen and only the prediction head was fine-tuned. The hyperparameters used can be found in the config file for this task./ After just 1 epoch, mAP@50 reached 0,9498, and in the end it achieved a 0,9602 in that metric.
 
-## Task 1.3
+## Task 1.3  
+To evaluate the robustness of the detector, we applied **K=4 cross-validation** using two different strategies. Strategy B divides the sequence into four **sequential folds**, preserving the temporal order of the video. Strategy C instead creates **random folds**, mixing frames from the entire sequence.
 
+Using sequential folds (Strategy B) we obtained an average **mAP of 0.924 ± 0.008**, while random folds (Strategy C) achieved **0.959 ± 0.001**. The higher performance in Strategy C is likely due to the random sampling of frames, which makes the training and validation sets more similar.
 
 ## Task 2.1 - Maximum Overlap Tracker
 
