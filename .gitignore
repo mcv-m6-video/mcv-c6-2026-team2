@@ -220,5 +220,7 @@ uv.lock
 .vscode/
 logs/
 checkpoints/
+checkpoints
 results/
+results
 wandb/
