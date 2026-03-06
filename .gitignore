@@ -212,6 +212,7 @@ __marimo__/
 # Extras
 Data/
 dataset/
+datasets/
 
 .python-version
 pyproject.toml
