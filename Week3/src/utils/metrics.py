@@ -31,7 +31,7 @@ def evaluate(
     else:
         output = raw_output
 
-    # Compute MSEN and PEPN
+    # Compute MSEN, PEPN and efficiency w.r.t. MSEN
     msen = mse_compute(output, gt, mask=mask)
     print(f"MSEN: {msen:.3f}")
     results["msen"].append(msen)
@@ -39,6 +39,10 @@ def evaluate(
     pepn = pep_compute(output, gt, threshold=threshold, mask=mask)
     print(f"PEPN: {pepn:.3f}")
     results["pepn"].append(pepn)
+
+    eff = custom_efficiency_compute(msen, mean_elapsed_time)
+    print(f"Efficiency: {eff:.3f}")
+    results["efficiency"].append(eff)
 
     return output, raw_output, results
 
@@ -96,3 +100,19 @@ def runtime_compute(func, *params, num_iters: int = 1, max_time: float = 120):
     mean_elapsed_time = np.mean(time_samples)
     std_elapsed_time = np.std(time_samples)
     return output, mean_elapsed_time, std_elapsed_time, it
+
+
+def custom_efficiency_compute(metric: float, runtime: float, lower_better: bool = True):
+    """
+    This is an efficiency metric just to compare these models.
+    It follows no standards.
+    FORMULA:
+    - (1 / metric) / time | if lower_better == True
+    - metric / time | if lower_better == False
+    """
+    if lower_better:
+        eff = (1 / metric) / runtime
+    else:
+        eff = metric / runtime
+    
+    return eff

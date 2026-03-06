@@ -64,7 +64,24 @@ def main(args):
     print(f"Saved reference image in {ref_path}")
 
     # Define methods to try
-    methods = [(pyflow.coarse2fine_flow, "pyflow")]
+    methods = [
+        (
+            pyflow.coarse2fine_flow,
+            "pyflow",
+            lambda x: np.concatenate((x[0][..., None], x[1][..., None]), axis=2),
+            [
+                image10,
+                image11,
+                of_alpha,
+                of_ratio,
+                of_minWidth,
+                of_nOuterFPIters,
+                of_nInnerFPIters,
+                of_nSORIters,
+                of_colType,
+            ],
+        )
+    ]
 
     # Define results dict
     results = {
@@ -73,32 +90,19 @@ def main(args):
         "pepn": [],
         "mean_runtime": [],
         "std_runtime": [],
+        "efficiency": [],
         "num_iters": [],
     }
 
     # Compute optical flow with pyflow
-    for method, name in methods:
-        params = [
-            image10,
-            image11,
-            of_alpha,
-            of_ratio,
-            of_minWidth,
-            of_nOuterFPIters,
-            of_nInnerFPIters,
-            of_nSORIters,
-            of_colType,
-        ]
-
+    for method, name, postprocess, params in methods:
         output, _, results = evaluate(
             method,
             gt_nocc,
-            "pyflow",
+            name,
             results,
             *params,
-            output_postprocess=lambda x: np.concatenate(
-                (x[0][..., None], x[1][..., None]), axis=2
-            ),
+            output_postprocess=postprocess,
             mask=valid_mask,
             num_iters=num_iters,
         )
