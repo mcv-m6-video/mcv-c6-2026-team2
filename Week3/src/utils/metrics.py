@@ -79,8 +79,10 @@ def pep_compute(
 
 
 def runtime_compute(func, *params, num_iters: int = 1, max_time: float = 120):
-    """Computes the runtime of the function execution.
-    If more than 1 iteration is specified, only the last output will be returned"""
+    """
+    Computes the runtime of the function execution.
+    If more than 1 iteration is specified, only the last output will be returned.
+    """
     time_samples = []
     for it in range(1, num_iters + 1):
         start_time = time.time()

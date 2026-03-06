@@ -2,7 +2,10 @@ import numpy as np
 
 
 def kitti_of_gt_processing(gt: np.ndarray):
-    """Processing of groundtruth according to the instructions located in the readme.txt inside the devkit."""
+    """
+    Processing of groundtruth according to the instructions
+    located in the readme.txt inside the devkit.
+    """
     if gt.dtype == np.uint16:
         gt = gt.astype(float)
 
