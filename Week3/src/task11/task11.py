@@ -8,6 +8,7 @@ from PIL import Image
 from src.utils.kitti_dataset import kitti_of_gt_processing
 from src.utils.metrics import evaluate
 from src.utils.visualizations import generate_flow_reference, save_flow
+from src.utils.configs import PyflowConfig, FarnebackConfig, BaseConfig
 
 
 def main(args):
@@ -17,18 +18,7 @@ def main(args):
     image_id = args.image_id
     num_iters = args.num_iters
 
-    of_alpha = args.of_alpha
-    of_ratio = args.of_ratio
-    of_minWidth = args.of_minWidth
-    of_nOuterFPIters = args.of_nOuterFPIters
-    of_nInnerFPIters = args.of_nInnerFPIters
-    of_nSORIters = args.of_nSORIters
-    of_colType = args.of_colType
-
-    if of_colType == 0:
-        subfolder = "colored_0"
-    else:
-        subfolder = "image_0"
+    subfolder = "image_0"
 
     # Load pair of images
     image10_path = os.path.join(
@@ -38,12 +28,10 @@ def main(args):
         dataset_path, "training", subfolder, f"{image_id:06d}_11.png"
     )
 
-    image10 = np.array(Image.open(image10_path), dtype=float) / 255.0
-    if image10.ndim == 2:
-        image10 = image10[..., np.newaxis]
-    image11 = np.array(Image.open(image11_path), dtype=float) / 255.0
-    if image11.ndim == 2:
-        image11 = image11[..., np.newaxis]
+    image10 = np.array(Image.open(image10_path))
+    image11 = np.array(Image.open(image11_path))
+
+    inputs = [image10, image11]
 
     # Load and save (visualization) non-occluded groundtruth
     gt_nocc_path = os.path.join(
@@ -64,23 +52,17 @@ def main(args):
     print(f"Saved reference image in {ref_path}")
 
     # Define methods to try
-    methods = [
+    methods: list[tuple[any, str, BaseConfig]] = [
         (
             pyflow.coarse2fine_flow,
             "pyflow",
-            lambda x: np.concatenate((x[0][..., None], x[1][..., None]), axis=2),
-            [
-                image10,
-                image11,
-                of_alpha,
-                of_ratio,
-                of_minWidth,
-                of_nOuterFPIters,
-                of_nInnerFPIters,
-                of_nSORIters,
-                of_colType,
-            ],
-        )
+            PyflowConfig(args),
+        ),
+        (
+            cv2.calcOpticalFlowFarneback,
+            "farneback",
+            FarnebackConfig(args),
+        ),
     ]
 
     # Define results dict
@@ -95,14 +77,16 @@ def main(args):
     }
 
     # Compute optical flow with pyflow
-    for method, name, postprocess, params in methods:
+    for method, name, config in methods:
         output, _, results = evaluate(
             method,
+            inputs,
             gt_nocc,
             name,
             results,
-            *params,
-            output_postprocess=postprocess,
+            *config.get_params_list(),
+            inputs_preprocess=config.preprocess,
+            output_postprocess=config.postprocess,
             mask=valid_mask,
             num_iters=num_iters,
         )

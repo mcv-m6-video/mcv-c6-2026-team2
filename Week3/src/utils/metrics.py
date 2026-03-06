@@ -5,19 +5,24 @@ import numpy as np
 
 def evaluate(
     method,
+    inputs: np.ndarray,
     gt: np.ndarray,
     name: str,
     results: dict,
     *params,
-    output_postprocess=None,
+    inputs_preprocess=lambda x: x,
+    output_postprocess=lambda x: x,
     mask: np.ndarray | None = None,
     threshold: int = 3,
     num_iters: int = 1,
 ):
     results["method"].append(name)
 
+    inputs = inputs_preprocess(inputs)
+
     raw_output, mean_elapsed_time, std_elapsed_time, actual_num_iters = runtime_compute(
         method,
+        inputs,
         *params,
         num_iters=num_iters,
     )
@@ -26,10 +31,7 @@ def evaluate(
     results["std_runtime"].append(std_elapsed_time)
     results["num_iters"].append(actual_num_iters)
 
-    if output_postprocess is not None:
-        output = output_postprocess(raw_output)
-    else:
-        output = raw_output
+    output = output_postprocess(raw_output)
 
     # Compute MSEN, PEPN and efficiency w.r.t. MSEN
     msen = mse_compute(output, gt, mask=mask)
@@ -82,7 +84,9 @@ def pep_compute(
     return pep
 
 
-def runtime_compute(func, *params, num_iters: int = 1, max_time: float = 120):
+def runtime_compute(
+    func, inputs, *params, num_iters: int = 1, max_time: float = 120
+):
     """
     Computes the runtime of the function execution.
     If more than 1 iteration is specified, only the last output will be returned.
@@ -90,7 +94,7 @@ def runtime_compute(func, *params, num_iters: int = 1, max_time: float = 120):
     time_samples = []
     for it in range(1, num_iters + 1):
         start_time = time.time()
-        output = func(*params)
+        output = func(inputs[0], inputs[1], *params)
         end_time = time.time()
         elapsed_time = end_time - start_time
         time_samples.append(elapsed_time)
@@ -114,5 +118,5 @@ def custom_efficiency_compute(metric: float, runtime: float, lower_better: bool 
         eff = (1 / metric) / runtime
     else:
         eff = metric / runtime
-    
+
     return eff
