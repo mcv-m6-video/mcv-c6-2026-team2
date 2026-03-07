@@ -60,6 +60,12 @@ def args_parser():
     parser_11.add_argument("--fb_polyN", type=int, default=5)
     parser_11.add_argument("--fb_polySigma", type=int, default=1.2)
 
+    ## Perceiver
+    parser_11.add_argument("--perc_path", type=str, default="deepmind/optical-flow-perceiver")
+
+    ## MEMFOF
+    parser_11.add_argument("--mf_path", type=str, default="egorchistov/optical-flow-MEMFOF-Tartan-T-TSKH")
+
     parser_11.set_defaults(func=t11)
 
     # Task 1.2

@@ -4,17 +4,20 @@ import cv2
 import numpy as np
 import pandas as pd
 import pyflow
-import torch
 from PIL import Image
-from src.utils.configs import BaseConfig, FarnebackConfig, PerceiverConfig, PyflowConfig
+from src.models import (
+    BaseModel,
+    FarnebackModel,
+    MEMFOFModel,
+    PerceiverModel,
+    PyflowModel,
+)
 from src.utils.kitti_dataset import kitti_of_gt_processing
 from src.utils.metrics import evaluate
 from src.utils.visualizations import generate_flow_reference, save_flow
-from transformers import PerceiverForOpticalFlow
 
 
 def main(args):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # Process arguments
     dataset_path = args.dataset_path
     output_path = args.output_path
@@ -55,26 +58,20 @@ def main(args):
     print(f"Saved reference image in {ref_path}")
 
     # Define methods to try
-    model = PerceiverForOpticalFlow.from_pretrained(
-        "deepmind/optical-flow-perceiver"
-    ).to(device=device)
-    perc_config = PerceiverConfig(model, args)
-    methods: list[tuple[any, str, BaseConfig]] = [
+    methods: list[tuple[any, str, BaseModel]] = [
         (
-            pyflow.coarse2fine_flow,
+            PyflowModel(args),
             "pyflow",
-            PyflowConfig(args),
         ),
         (
-            cv2.calcOpticalFlowFarneback,
+            FarnebackModel(args),
             "farneback",
-            FarnebackConfig(args),
         ),
         (
-            perc_config,
+            PerceiverModel(args),
             "perceiverio",
-            perc_config,
         ),
+        (MEMFOFModel(args), "memfof"),
     ]
 
     # Define results dict
@@ -89,16 +86,13 @@ def main(args):
     }
 
     # Compute optical flow with pyflow
-    for method, name, config in methods:
-        output, _, results = evaluate(
+    for method, name in methods:
+        output, results = evaluate(
             method,
             inputs,
             gt_nocc,
             name,
             results,
-            *config.get_params_list(),
-            inputs_preprocess=config.preprocess,
-            output_postprocess=config.postprocess,
             mask=valid_mask,
             num_iters=num_iters,
         )

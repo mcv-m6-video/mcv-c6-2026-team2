@@ -9,29 +9,21 @@ def evaluate(
     gt: np.ndarray,
     name: str,
     results: dict,
-    *params,
-    inputs_preprocess=lambda x: x,
-    output_postprocess=lambda x: x,
     mask: np.ndarray | None = None,
     threshold: int = 3,
     num_iters: int = 1,
 ):
     results["method"].append(name)
 
-    inputs = inputs_preprocess(inputs)
-
-    raw_output, mean_elapsed_time, std_elapsed_time, actual_num_iters = runtime_compute(
+    output, mean_elapsed_time, std_elapsed_time, actual_num_iters = runtime_compute(
         method,
         inputs,
-        *params,
         num_iters=num_iters,
     )
     print(f"Elapsed time: {mean_elapsed_time:.3f} (+/-{std_elapsed_time:.3f})")
     results["mean_runtime"].append(mean_elapsed_time)
     results["std_runtime"].append(std_elapsed_time)
     results["num_iters"].append(actual_num_iters)
-
-    output = output_postprocess(raw_output)
 
     # Compute MSEN, PEPN and efficiency w.r.t. MSEN
     msen = mse_compute(output, gt, mask=mask)
@@ -42,11 +34,11 @@ def evaluate(
     print(f"PEPN: {pepn:.3f}")
     results["pepn"].append(pepn)
 
-    eff = custom_efficiency_compute(msen, mean_elapsed_time)
+    eff = custom_efficiency_compute(pepn, mean_elapsed_time)
     print(f"Efficiency: {eff:.3f}")
     results["efficiency"].append(eff)
 
-    return output, raw_output, results
+    return output, results
 
 
 def mse_compute(prediction: np.ndarray, gt: np.ndarray, mask: np.ndarray | None = None):
@@ -84,33 +76,20 @@ def pep_compute(
     return pep
 
 
-def runtime_compute(
-    func, inputs, *params, num_iters: int = 1, max_time: float = 120
-):
+def runtime_compute(func, inputs, num_iters: int = 1, max_time: float = 120):
     """
     Computes the runtime of the function execution.
     If more than 1 iteration is specified, only the last output will be returned.
     """
     time_samples = []
-    if isinstance(inputs, tuple) or isinstance(inputs, list):
-        for it in range(1, num_iters + 1):
-            start_time = time.time()
-            output = func(inputs[0], inputs[1], *params)
-            end_time = time.time()
-            elapsed_time = end_time - start_time
-            time_samples.append(elapsed_time)
-            if elapsed_time > max_time:
-                break
-    else:
-        print(inputs.shape)
-        for it in range(1, num_iters + 1):
-            start_time = time.time()
-            output = func(inputs, *params)
-            end_time = time.time()
-            elapsed_time = end_time - start_time
-            time_samples.append(elapsed_time)
-            if elapsed_time > max_time:
-                break
+    for it in range(1, num_iters + 1):
+        start_time = time.time()
+        output = func(inputs)
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        time_samples.append(elapsed_time)
+        if elapsed_time > max_time:
+            break
 
     mean_elapsed_time = np.mean(time_samples)
     std_elapsed_time = np.std(time_samples)

@@ -1,90 +1,25 @@
 import itertools
 import math
-from collections import OrderedDict
-from pprint import pprint
 
 import cv2
 import numpy as np
 import torch
-import torch.nn.functional as F
-from torchvision.transforms.functional import to_tensor
+import torchvision.transforms.functional as F
+from transformers import PerceiverForOpticalFlow
+
+from .BaseModel import BaseModel
 
 
-class BaseConfig:
-    def __init__(self):
-        self.params = OrderedDict()
-
-    def get_params_dict(self):
-        return self.params
-
-    def get_params_list(self):
-        return list(self.params.values())
-
-    def preprocess(self):
-        pass
-
-    def postprocess(self):
-        pass
-
-
-class PyflowConfig(BaseConfig):
+class PerceiverModel(BaseModel):
     def __init__(self, args):
         super().__init__()
-        self.params["pf_alpha"] = args.pf_alpha
-        self.params["pf_ratio"] = args.pf_ratio
-        self.params["pf_minWidth"] = args.pf_minWidth
-        self.params["pf_nOuterFPIters"] = args.pf_nOuterFPIters
-        self.params["pf_nInnerFPIters"] = args.pf_nInnerFPIters
-        self.params["pf_nSORIters"] = args.pf_nSORIters
-        self.params["pf_colType"] = args.pf_colType
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model = PerceiverForOpticalFlow.from_pretrained(args.perc_path).eval().to(
+            device=device
+        )
+        self.train_size = self.model.config.train_size
 
-    def preprocess(self, image: list[np.ndarray]):
-        output = []
-        for im in image:
-            im = np.astype(im, float) / 255.0
-            if im.ndim == 2:
-                im = im[..., np.newaxis]
-            output.append(im)
-        return output
-
-    def postprocess(self, output: tuple[np.ndarray]):
-        u = output[0]
-        v = output[1]
-        flow = np.concatenate((u[..., np.newaxis], v[..., np.newaxis]), axis=2)
-        return flow
-
-
-class FarnebackConfig(BaseConfig):
-    def __init__(self, args):
-        super().__init__()
-        self.params["fb_flow"] = None  # Don't worry, ignore this
-        self.params["fb_pyrScale"] = args.fb_pyrScale
-        self.params["fb_levels"] = args.fb_levels
-        self.params["fb_winSize"] = args.fb_winSize
-        self.params["fb_iters"] = args.fb_iters
-        self.params["fb_polyN"] = args.fb_polyN
-        self.params["fb_polySigma"] = args.fb_polySigma
-        self.params["fb_flags"] = 0
-
-    def preprocess(self, image: list[np.ndarray]):
-        outputs = []
-        for im in image:
-            if im.ndim == 3:
-                im = cv2.cvtColor(im, cv2.COLOR_RGB2GRAY)
-            outputs.append(im)
-        return outputs
-
-    def postprocess(self, output: np.ndarray):
-        return output
-
-
-class PerceiverConfig(BaseConfig):
-    def __init__(self, model, args):
-        super().__init__()
         self.params["any"] = None
-        self.model = model
-        self.device = model.device
-        self.train_size = model.config.train_size
 
     def _normalize(self, image: np.ndarray):
         return image.astype(np.float32) / 255.0 * 2 - 1
@@ -169,8 +104,6 @@ class PerceiverConfig(BaseConfig):
             imgs = torch.stack([img1, img2], dim=0)[None]
             inp_piece = imgs[..., y : y + patch_size[0], x : x + patch_size[1]]
 
-            print("Shape of inp_piece:", inp_piece.shape)
-
             batch_size, _, C, H, W = inp_piece.shape
             patches = self._extract_image_patches(
                 inp_piece.view(batch_size * 2, C, H, W), kernel=3
@@ -207,28 +140,30 @@ class PerceiverConfig(BaseConfig):
         flows /= flow_count
         return flows
 
-    def preprocess(self, images: list[np.ndarray]):
+    def _preprocess(self, images: list[np.ndarray]):
         outputs = []
 
-        # Stack images
         for im in images:
             if im.ndim == 2:
-                im = im[..., np.newaxis]
-            im = im.repeat(3, axis=-1)
+                im = cv2.cvtColor(im, cv2.COLOR_GRAY2RGB)
             outputs.append(im)
 
         return outputs
 
-    def postprocess(self, output: np.ndarray):
+    def _postprocess(self, output: np.ndarray):
         output = np.array(output).squeeze()
         return output
 
-    def __call__(self, image1: np.ndarray, image2: np.ndarray, nothing):
-        grid_indices = self._compute_grid_indices(image1.shape)
-        flow = self._compute_optical_flow(
+    def __call__(self, images: list[np.ndarray]):
+        inputs = self._preprocess(images)
+
+        grid_indices = self._compute_grid_indices(inputs[0].shape)
+        output = self._compute_optical_flow(
             self.model,
-            self._normalize(image1),
-            self._normalize(image2),
+            self._normalize(inputs[0]),
+            self._normalize(inputs[1]),
             grid_indices,
         )
+
+        flow = self._postprocess(output)
         return flow
