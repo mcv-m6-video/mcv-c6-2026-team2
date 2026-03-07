@@ -92,14 +92,25 @@ def runtime_compute(
     If more than 1 iteration is specified, only the last output will be returned.
     """
     time_samples = []
-    for it in range(1, num_iters + 1):
-        start_time = time.time()
-        output = func(inputs[0], inputs[1], *params)
-        end_time = time.time()
-        elapsed_time = end_time - start_time
-        time_samples.append(elapsed_time)
-        if elapsed_time > max_time:
-            break
+    if isinstance(inputs, tuple) or isinstance(inputs, list):
+        for it in range(1, num_iters + 1):
+            start_time = time.time()
+            output = func(inputs[0], inputs[1], *params)
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            time_samples.append(elapsed_time)
+            if elapsed_time > max_time:
+                break
+    else:
+        print(inputs.shape)
+        for it in range(1, num_iters + 1):
+            start_time = time.time()
+            output = func(inputs, *params)
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            time_samples.append(elapsed_time)
+            if elapsed_time > max_time:
+                break
 
     mean_elapsed_time = np.mean(time_samples)
     std_elapsed_time = np.std(time_samples)

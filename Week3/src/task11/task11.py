@@ -4,14 +4,17 @@ import cv2
 import numpy as np
 import pandas as pd
 import pyflow
+import torch
 from PIL import Image
+from src.utils.configs import BaseConfig, FarnebackConfig, PerceiverConfig, PyflowConfig
 from src.utils.kitti_dataset import kitti_of_gt_processing
 from src.utils.metrics import evaluate
 from src.utils.visualizations import generate_flow_reference, save_flow
-from src.utils.configs import PyflowConfig, FarnebackConfig, BaseConfig
+from transformers import PerceiverForOpticalFlow
 
 
 def main(args):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # Process arguments
     dataset_path = args.dataset_path
     output_path = args.output_path
@@ -52,6 +55,10 @@ def main(args):
     print(f"Saved reference image in {ref_path}")
 
     # Define methods to try
+    model = PerceiverForOpticalFlow.from_pretrained(
+        "deepmind/optical-flow-perceiver"
+    ).to(device=device)
+    perc_config = PerceiverConfig(model, args)
     methods: list[tuple[any, str, BaseConfig]] = [
         (
             pyflow.coarse2fine_flow,
@@ -62,6 +69,11 @@ def main(args):
             cv2.calcOpticalFlowFarneback,
             "farneback",
             FarnebackConfig(args),
+        ),
+        (
+            perc_config,
+            "perceiverio",
+            perc_config,
         ),
     ]
 
