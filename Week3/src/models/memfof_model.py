@@ -4,7 +4,7 @@ import torch
 import torchvision.transforms.functional as F
 from memfof import MEMFOF
 
-from .BaseModel import BaseModel
+from .of_model import BaseModel
 
 
 class MEMFOFModel(BaseModel):

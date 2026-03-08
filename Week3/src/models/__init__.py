@@ -1,13 +1,13 @@
-from .BaseModel import BaseModel
-from .FarnebackModel import FarnebackModel
-from .MEMFOFModel import MEMFOFModel
-from .PerceiverModel import PerceiverModel
-from .PyflowModel import PyflowModel
+from .farneback_model import FarnebackModel
+from .memfof_model import MEMFOFModel
+from .of_model import BaseModel
+from .perceiver_model import PerceiverModel
+from .pyflow_model import PyflowModel
 
 __all__ = [
-    "PyflowModel",
     "FarnebackModel",
-    "PerceiverModel",
     "MEMFOFModel",
     "BaseModel",
+    "PerceiverModel",
+    "PyflowModel",
 ]

@@ -70,6 +70,7 @@ def args_parser():
 
     # Task 1.2
     parser_12 = subparsers.add_parser("task12")
+    parser_12.add_argument("--pingo", type=str, default="pingo")
     parser_12.set_defaults(func=t12)
 
     # Task 2.1

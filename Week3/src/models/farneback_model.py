@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-from .BaseModel import BaseModel
+from .of_model import BaseModel
 
 
 class FarnebackModel(BaseModel):

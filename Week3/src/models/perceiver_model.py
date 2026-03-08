@@ -7,7 +7,7 @@ import torch
 import torchvision.transforms.functional as F
 from transformers import PerceiverForOpticalFlow
 
-from .BaseModel import BaseModel
+from .of_model import BaseModel
 
 
 class PerceiverModel(BaseModel):

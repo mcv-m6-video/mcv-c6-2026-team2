@@ -1,7 +1,7 @@
 import numpy as np
 import pyflow
 
-from .BaseModel import BaseModel
+from .of_model import BaseModel
 
 
 class PyflowModel(BaseModel):
