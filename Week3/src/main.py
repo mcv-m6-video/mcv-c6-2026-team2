@@ -76,7 +76,7 @@ def args_parser():
     # Task 2.1
     parser_21 = subparsers.add_parser("task21")
     parser_21.add_argument("--tracker_name", type=str, default="kalmannof")
-    parser_21.add_argument("--make_video", type=bool, action="store_true")
+    parser_21.add_argument("--make_video", action="store_true")
     parser_21.set_defaults(func=t21)
 
     # Task 2.2
