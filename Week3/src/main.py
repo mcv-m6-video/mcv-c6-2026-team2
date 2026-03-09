@@ -30,11 +30,11 @@ def args_parser():
         default=None,
         help="Config file with all the arguments configuration.",
     )
+    parser.add_argument("--dataset_path", type=str, default="datasets/KITTI")
+    parser.add_argument("--output_path", type=str, default="results/task11")
 
     # Task 1.1
     parser_11 = subparsers.add_parser("task11")
-    parser_11.add_argument("--dataset_path", type=str, default="datasets/KITTI")
-    parser_11.add_argument("--output_path", type=str, default="results/task11")
     parser_11.add_argument("--image_id", type=int, default=45)
     parser_11.add_argument("--num_iters", type=float, default=1)
 
@@ -74,12 +74,14 @@ def args_parser():
     parser_12.set_defaults(func=t12)
 
     # Task 2.1
-    parser_12 = subparsers.add_parser("task21")
-    parser_12.set_defaults(func=t21)
+    parser_21 = subparsers.add_parser("task21")
+    parser_21.add_argument("--tracker_name", type=str, default="kalmannof")
+    parser_21.add_argument("--make_video", type=bool, action="store_true")
+    parser_21.set_defaults(func=t21)
 
     # Task 2.2
-    parser_12 = subparsers.add_parser("task22")
-    parser_12.set_defaults(func=t22)
+    parser_22 = subparsers.add_parser("task22")
+    parser_22.set_defaults(func=t22)
 
     args = parser.parse_args()
 

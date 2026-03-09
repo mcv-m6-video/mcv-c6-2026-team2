@@ -5,3 +5,6 @@
 [submodule "Week3/submodules/pyflow"]
 	path = Week3/submodules/pyflow
 	url = https://github.com/pathak22/pyflow.git
+[submodule "Week3/submodules/TrackEval"]
+	path = Week3/submodules/TrackEval
+	url = https://github.com/JonathonLuiten/TrackEval.git
