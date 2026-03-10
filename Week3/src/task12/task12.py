@@ -219,7 +219,7 @@ def main(args):
 
         frame_id = 0
 
-        while frame_id < 50:
+        while True:
             print(f"Processing frame {frame_id}...", flush=True)
             ret, frame = video.read()
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
