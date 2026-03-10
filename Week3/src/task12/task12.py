@@ -47,26 +47,38 @@ def offline_tracking(
     tracker: OFTracker,
     video_path: str
 ):
-    """
-    Track objects across all frames in the video using the provided tracker model.
-
-    Args:
-        tracker: an instance of OFTracker for tracking objects;
-        video_path: path to the input video file.
-
-    Returns:
-        tracks: list of Track objects representing the tracked objects across all frames.
-    """
-    # read video, extract frames, and extract all detections offline
     video = cv2.VideoCapture(video_path)
-    frame_prev = video.read()[1]
-    tracker.initialize_tracks(frame_prev)
+
+    frames = []
+    while True:
+        ret, frame = video.read()
+        if not ret:
+            break
+        frames.append(frame)
+
+    video.release()
+
+    if len(frames) == 0:
+        raise RuntimeError("Could not read any frame from video.")
+
+    print(f"[Offline] Loaded {len(frames)} frames", flush=True)
+
+    all_dets = tracker.detect_all_frames(frames, batch_size=8)
+    all_flows = tracker.compute_all_flows(frames)
+
+    tracker.initialize_tracks_from_dets(all_dets[0])
+
     tracks = []
-    for frame_id, frame in enumerate(video):
-        tracks_ = tracker.update(frame_prev, frame)
+    for frame_id in range(1, len(frames)):
+        print(f"[Offline] Tracking frame {frame_id}", flush=True)
+
+        tracks_ = tracker.update_from_precomputed(
+            of_output=all_flows[frame_id - 1],
+            dets1=all_dets[frame_id],
+        )
+
         for track in tracks_:
-            tracks.append(track + [frame_id])  # add frame_id to each track
-        frame_prev = frame
+            tracks.append(track.tolist() + [frame_id])
 
     return tracks
 
@@ -222,10 +234,11 @@ def main(args):
         while True:
             print(f"Processing frame {frame_id}...", flush=True)
             ret, frame = video.read()
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
             if not ret:
                 break  # end of video
+
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
             frame_id += 1
 

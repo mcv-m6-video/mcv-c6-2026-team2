@@ -165,51 +165,78 @@ class OFTracker:
         for det in initial_dets:
             self.tracks.append(Track(det))
 
-    def detect_and_filter(self, image: np.ndarray) -> np.ndarray:
-        """Detect objects in the image and filter detections.
+    def detect_all_frames(
+        self,
+        frames: list[np.ndarray],
+        batch_size: int = 8,
+    ) -> list[np.ndarray]:
+        """
+        Run object detection in batches for all frames.
 
-        Args:   
-            image: input image as a numpy array
+        Args:
+            frames: list of video frames
+            batch_size: number of frames per detection batch
 
         Returns:
-            dets: list of filtered detections; each detection is [x1, y1, x2, y2]
+            all_dets: list where each element has shape [N_i, 4]
+        """
+        all_dets = []
+
+        for start in range(0, len(frames), batch_size):
+            end = min(start + batch_size, len(frames))
+            print(f"[Offline] Detecting frames {start}..{end-1}", flush=True)
+
+            batch_frames = frames[start:end]
+            batch_dets = self.detect_and_filter(
+                batch_frames)  # already returns list
+
+            all_dets.extend(batch_dets)
+
+        return all_dets
+
+    def detect_and_filter(self, image: np.ndarray | list[np.ndarray]) -> list[np.ndarray]:
+        """Detect objects in one or more images and filter detections.
+
+        Args:
+            image: single image or list of images as numpy arrays
+
+        Returns:
+            dets_parsed: list of arrays, each of shape [N_i, 4]
         """
         if isinstance(image, np.ndarray):
-            image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            image_tensor = torch.from_numpy(
-                image_rgb).permute(2, 0, 1).float() / 255.0
-            image = [image_tensor]
+            image = [image]
 
-        elif isinstance(image, list) and isinstance(image[0], np.ndarray):
-            img_list = []
-            for img in image:
-                img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                img_tensor = torch.from_numpy(
-                    img_rgb).permute(2, 0, 1).float() / 255.0
-                img_list.append(img_tensor)
-            image = img_list
+        elif not (isinstance(image, list) and all(isinstance(img, np.ndarray) for img in image)):
+            raise TypeError(
+                "image must be a numpy array or a list of numpy arrays")
 
-        image = [img.to(device=self.device) for img in image]
+        img_list = []
+        for img in image:
+            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            img_tensor = torch.from_numpy(
+                img_rgb).permute(2, 0, 1).float() / 255.0
+            img_list.append(img_tensor.to(device=self.device))
 
         with torch.no_grad():
-            dets = self.obj_detector(image)
+            dets = self.obj_detector(img_list)
 
-        # parse detections
         dets_parsed = []
         for frame in dets:
             dets_frame = []
-            for box_i, box in enumerate(frame['boxes']):
-                # x1, y1, x2, y2 = box.cpu().numpy()
+            for box_i, box in enumerate(frame["boxes"]):
                 x1, y1, x2, y2 = box.tolist()
-                conf = frame['scores'][box_i].item()
+                conf = frame["scores"][box_i].item()
+
                 if conf >= self.conf_threshold:
                     dets_frame.append([x1, y1, x2, y2, conf])
 
             dets_frame = filter_duplicates(
                 dets_frame, threshold=self.dup_iou_threshold)
 
-            # drop score for tracking
-            dets_parsed.append(np.array(dets_frame)[:, :4])
+            if len(dets_frame) == 0:
+                dets_parsed.append(np.empty((0, 4), dtype=float))
+            else:
+                dets_parsed.append(np.array(dets_frame, dtype=float)[:, :4])
 
         return dets_parsed
 
@@ -272,4 +299,99 @@ class OFTracker:
                 self.tracks.pop(i)
         if len(ret) > 0:
             return np.concatenate(ret)
+        return np.empty((0, 5))
+
+    def compute_all_flows(self, frames: list[np.ndarray]) -> list[np.ndarray]:
+        """
+        Compute optical flow for all consecutive frame pairs.
+        flows[i] corresponds to flow from frames[i] -> frames[i+1].
+        """
+        all_flows = []
+
+        for i in range(len(frames) - 1):
+            print(f"[Offline] Optical flow {i}->{i+1}", flush=True)
+            flow = self.of([frames[i], frames[i + 1]])
+            all_flows.append(flow)
+
+        return all_flows
+
+    def initialize_tracks_from_dets(self, initial_dets: np.ndarray):
+        """Initialize tracks from already computed detections."""
+        self.tracks = []
+        self.frame_count = 0
+        for det in initial_dets:
+            self.tracks.append(Track(det))
+
+    def update_from_precomputed(
+        self,
+        of_output: np.ndarray,
+        dets1: np.ndarray,
+    ):
+        """
+        Update tracks using precomputed optical flow and detections.
+        dets1 must be shape [N, 4].
+        """
+        self.frame_count += 1
+
+        trks = np.zeros((len(self.tracks), 5), dtype=float)
+        to_del = []
+        ret = []
+
+        # Predict existing tracks with precomputed flow
+        for t, track_row in enumerate(trks):
+            predicted_bbox = self.tracks[t].predict(of_output)
+            track_row[:] = [
+                predicted_bbox[0],
+                predicted_bbox[1],
+                predicted_bbox[2],
+                predicted_bbox[3],
+                0,
+            ]
+
+            if np.any(np.isnan(predicted_bbox)):
+                to_del.append(t)
+
+        # Remove invalid predictions
+        trks = np.ma.compress_rows(np.ma.masked_invalid(trks))
+        for t in reversed(to_del):
+            self.tracks.pop(t)
+
+        # Associate detections with predicted tracks
+        matched, unmatched_dets, unmatched_trks = associate_detections_to_trackers(
+            dets1, trks, self.iou_threshold
+        )
+
+        # Update matched trackers
+        for t, trk in enumerate(self.tracks):
+            if t not in unmatched_trks:
+                d = matched[np.where(matched[:, 1] == t)[0], 0]
+                trk.update(dets1[d, :][0])
+            else:
+                # unmatched track -> keep predicted position and count miss
+                trk.bboxes.append(trks[t, :4].tolist())
+                trk.misses += 1
+                trk.age += 1
+                trk.hit_streak = 0
+
+        # Create new tracks for unmatched detections
+        for i in unmatched_dets:
+            self.tracks.append(Track(dets1[i, :]))
+
+        # Prepare output and remove dead tracks
+        i = len(self.tracks)
+        for trk in reversed(self.tracks):
+            d = trk.last_bbox()
+            if (
+                (trk.misses < 1)
+                and (trk.hit_streak >= self.min_hits or self.frame_count <= self.min_hits)
+            ):
+                ret.append(np.concatenate((d, [trk.id + 1])).reshape(1, -1))
+
+            i -= 1
+            if trk.misses > self.max_age:
+                self.tracks.pop(i)
+
+        if len(ret) > 0:
+            return np.concatenate(ret)
+
         return np.empty((0, 5))
