@@ -146,7 +146,8 @@ def associate_detections_to_trackers(detections, trackers, iou_threshold=0.3):
     Returns 3 lists of matches, unmatched_detections and unmatched_trackers
     """
     if (len(trackers) == 0):
-        return np.empty((0, 2), dtype=int), np.arange(len(detections)), np.empty((0, 5), dtype=int)
+        return (np.empty((0, 2), dtype=int), np.arange(len(detections)),
+                np.empty((0, 5), dtype=int))
     iou_matrix = np.zeros((len(detections), len(trackers)), dtype=np.float32)
 
     for d, det in enumerate(detections):
@@ -229,8 +230,8 @@ class Sort(object):
         i = len(self.trackers)
         for trk in reversed(self.trackers):
             d = trk.get_state()[0]
-            if ((trk.time_since_update < 1) and 
-                (trk.hit_streak >= self.min_hits or self.frame_count <= self.min_hits)):
+            if ((trk.time_since_update < 1) and
+                    (trk.hit_streak >= self.min_hits or self.frame_count <= self.min_hits)):
                 # +1 as MOT benchmark requires positive
                 ret.append(np.concatenate((d, [trk.id+1])).reshape(1, -1))
             i -= 1

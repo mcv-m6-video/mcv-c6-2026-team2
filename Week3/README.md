@@ -8,6 +8,10 @@ pip install Cython numpy # Requirements for pyflow
 
 cd submodule/pyflow
 pip install . # If using conda or python's virtual environments
+
+# Marina: I had to use this command to make it work in the server: 
+pip install --no-build-isolation . 
+
 #uv pip install . # If using uv as virtual environment manager
 ```
 

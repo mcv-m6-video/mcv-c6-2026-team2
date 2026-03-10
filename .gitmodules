@@ -8,3 +8,6 @@
 [submodule "Week3/submodules/TrackEval"]
 	path = Week3/submodules/TrackEval
 	url = https://github.com/JonathonLuiten/TrackEval.git
+[submodule "Week3/src/utils/TrackEval"]
+	path = Week3/src/utils/TrackEval
+	url = https://github.com/JonathonLuiten/TrackEval.git

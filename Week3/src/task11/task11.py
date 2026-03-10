@@ -71,7 +71,10 @@ def main(args):
             PerceiverModel(args),
             "perceiverio",
         ),
-        (MEMFOFModel(args), "memfof"),
+        (
+            MEMFOFModel(args),
+            "memfof"
+        ),
     ]
 
     # Define results dict
