@@ -89,7 +89,9 @@ def args_parser():
     parser_12.add_argument("--dup_iou_threshold", type=float, default=0.5)
     parser_12.add_argument("--max_age", type=int, default=20)
     parser_12.add_argument("--min_hits", type=int, default=3)
-    parser_12.add_argument("--conf_threshold", type=float, default=0.7)
+    parser_12.add_argument("--conf_threshold", type=float, default=0.5)
+    # parser_12.add_argument("--predominant_of_method", type=str, default="median",
+    #                        choices=["median", "mean"])
     # tracker results
     parser_12.add_argument("--output_txt_path", type=str,
                            default="results/task12/optical_flow_results.txt")

@@ -151,7 +151,8 @@ class OFTracker:
         max_age: int = 5,
         min_hits: int = 3,
         conf_threshold: float = 0.5,
-        device: str = "cpu"
+        device: str = "cpu",
+        predominant_of_method: str = "median"
     ):
         self.of = of
         self.obj_detector = obj_detector
@@ -159,6 +160,7 @@ class OFTracker:
         self.dup_iou_threshold = dup_iou_threshold
         self.max_age = max_age
         self.conf_threshold = conf_threshold
+        self.predominant_of_method = predominant_of_method
 
         self.tracks: list[Track] = []
         self.frame_count = 0
@@ -172,7 +174,8 @@ class OFTracker:
         """Initialize tracks with initial detections."""
         initial_dets = self.detect_and_filter(initial_frame)[0]
         for det in initial_dets:
-            self.tracks.append(Track(det))
+            self.tracks.append(
+                Track(det, predominant_of_method=self.predominant_of_method))
 
     def detect_all_frames(
         self,

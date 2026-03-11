@@ -114,8 +114,44 @@ python -m src.main taskX -h
 ## Task 1.1
 We kept the Faster R-CNN model from last week and tested Pyflow, Farneback, Perceiver IO and MEMFOF. We ended up keeping MEMFOF as the final model for the other tasks.
 
-## Task 1.2
-We replaced Kalmann filtering with optical flow estimations to improve the overlapping method. More details on the hyperparameters and evaluation metrics used can be found in last week's README.md.
+## Task 1.2 - Optical Flow Tracker
+
+In this task we extend the tracking-by-detection approach from the previous week by incorporating optical flow to estimate object motion between frames. Instead of relying on a predefined motion model (e.g., Kalman filtering), the tracker directly estimates displacement from pixel-level motion.
+
+![Optical Flow Tracking Pipeline](docs/optical_flow_schema.png)
+
+The method follows a tracking-by-motion pipeline composed of the following steps:
+
+### 1. Track Initialization
+
+In the first frame, all detected objects are assigned a unique track ID. Each track stores the current bounding box and its associated identity.
+
+### 2. Motion Estimation with Optical Flow
+
+For each tracked object, dense optical flow is computed between consecutive frames `t-1 -> t`
+The flow vectors inside each bounding box are aggregated to estimate the dominant motion of the object. In our implementation we compute the median flow vector within the bounding box, which provides a robust estimate of the object displacement.
+
+This motion vector is used to predict the new position of the bounding box in the next frame.
+
+### 3. Detection Association
+
+The predicted bounding boxes are matched with the detections in the current frame using IoU-based matching.
+The detection with the highest overlap with the predicted position inherits the same track ID, allowing the tracker to maintain consistent object identities over time.
+
+### 4. Temporal Recovery
+
+If a detection is temporarily missing, the tracker attempts to recover the track using past positions.
+The algorithm searches several previous frames for a compatible bounding box (based on IoU). If a match is found, the track is recovered and the missing detections are interpolated; otherwise a new track is initialized.
+
+### 5. Iterative Tracking
+
+This process is repeated for every new frame: optical flow is used to estimate motion, bounding boxes are shifted according to the predicted displacement, and detections are associated to maintain consistent identities.
+
+### Implementation Details
+
+Optical flow is computed using MEMFOF, which provided the best trade-off between accuracy and computational efficiency during our preliminary evaluation. By estimating motion directly from image displacement, this approach allows the tracker to adapt to complex motion patterns without assuming a fixed motion model.
+
+More details on the hyperparameters and evaluation metrics used can be found in last week's README.md.
 
 
 ## Task 2.1 and Task 2.2
