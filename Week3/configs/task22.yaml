@@ -1,0 +1,4 @@
+dataset_path: datasets/AI_CITY_CHALLENGE_2022_TRAIN/train/S03
+output_path: results/task21
+obj_detector_path: checkpoints/fasterrcnn_faster-rcnn_best.pth
+make_video: True

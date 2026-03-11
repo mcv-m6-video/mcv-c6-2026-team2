@@ -214,7 +214,6 @@ def main(args):
         min_hits=args.min_hits,
         conf_threshold=args.conf_threshold,
         device=device,
-        predominant_of_method=args.predominant_of_method
     )
 
     print(f"Initialized tracker", flush=True)

@@ -8,7 +8,7 @@ from src.utils.track_eval import prepare_trackeval_folders, run_trackeval_script
 from src.utils.visualizations import create_tracking_video
 from torchvision.models.detection import fasterrcnn_resnet50_fpn_v2
 from tqdm import tqdm
-
+import cv2
 
 def evaluate_tracking_results(
     pred_path: str,
@@ -101,40 +101,65 @@ def main(args):
 
     # Process and evaluate dataset
     for track in range(len(dataset)):
+        if track < 3 or track > 3:
+            continue
         # Set active track
         dataset.change_active_track(track)
 
         # Process dataset
         all_results = []
         frame_prev = None
+        target_w, target_h = 1920, 1080
         for idx, frame in tqdm(
             enumerate(dataset.get_video_stream()), desc=f"Track {track}"
         ):
+            orig_h, orig_w = frame.shape[:2]
+
+            if orig_w > target_w or orig_h > target_h:
+                scale_x = orig_w / target_w
+                scale_y = orig_h / target_h
+                frame_resized = cv2.resize(frame, (target_w, target_h))
+            else:
+                frame_resized = frame
+
             if frame_prev is None:
-                tracker.initialize_tracks(frame)
-                frame_prev = frame
+                tracker.initialize_tracks(frame_resized)
+                frame_prev = frame_resized
                 continue
 
-            tracks = tracker.update(frame_prev, frame)
+            tracks = tracker.update(frame_prev, frame_resized)
 
             for tr in tracks:
                 x, y, xbr, ybr, tid = tr
-                w = xbr - x
-                h = ybr - y
+
+                if orig_w > target_w or orig_h > target_h:
+                    x_scaled = x * scale_x
+                    y_scaled = y * scale_y
+                    xbr_scaled = xbr * scale_x
+                    ybr_scaled = ybr * scale_y
+                else:
+                    x_scaled = x
+                    y_scaled = y
+                    xbr_scaled = xbr
+                    ybr_scaled = ybr
+
+                w = xbr_scaled - x_scaled
+                h = ybr_scaled - y_scaled
 
                 all_results.append(
-                    f"{idx + 1},{int(tid)},{x:.2f},{y:.2f},{w:.2f},{h:.2f},1,-1,-1,-1\n"
+                    f"{idx + 1},{int(tid)},{x_scaled:.2f},{y_scaled:.2f},{w:.2f},{h:.2f},1,-1,-1,-1\n"
                 )
 
-            frame_prev = frame
+            frame_prev = frame_resized
 
         # Save prediction
         track_path = os.path.split(dataset.get_active_video_path())[0]
         track_name = os.path.basename(track_path)
+        os.makedirs(os.path.join(output_path, track_name), exist_ok=True)
         pred_path = os.path.join(output_path, track_name, "pred.txt")
 
         with open(pred_path, "w") as f:
-            f.writelines(tracker.tracks())
+            f.writelines(all_results)
 
         # Evaluate dataset with TrackEval
         gt_path = dataset.get_gt()
@@ -142,14 +167,17 @@ def main(args):
 
         print("Evaluating tracking results...")
         evaluate_tracking_results(
-            pred_path, gt_path, trackeval_path, output_metrics_path
+            pred_path, gt_path, output_metrics_path, trackeval_path
         )
+
+        active_video_path = dataset.get_active_video_path()
+        dataset.close()
 
         if make_video:
             output_video_path = os.path.join(output_path, track_name, "track.mp4")
             print("Creating tracking video...")
             create_tracking_video(
-                dataset.get_active_video_path(),
+                active_video_path,
                 pred_path,
                 output_video_path,
                 end_frame=100000000000,

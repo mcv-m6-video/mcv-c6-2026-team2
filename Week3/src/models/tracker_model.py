@@ -60,11 +60,17 @@ class Track:
 
         of_bbox = of_output[int(self.last_bbox()[1]):int(np.ceil(self.last_bbox()[3])),
                             int(self.last_bbox()[0]):int(np.ceil(self.last_bbox()[2]))]
+        
+        if of_bbox.size == 0:
+            return [np.nan, np.nan, np.nan, np.nan]
 
         if self.predominant_of_method == 'median':
             of_vector = np.median(of_bbox.reshape(-1, 2), axis=0)
         elif self.predominant_of_method == 'mean':
             of_vector = np.mean(of_bbox.reshape(-1, 2), axis=0)
+        
+        if np.any(np.isnan(of_vector)):
+            return [np.nan, np.nan, np.nan, np.nan]
 
         predicted_bbox = [
             int(last_bbox[0] + of_vector[0]),
@@ -95,7 +101,10 @@ def associate_detections_to_trackers(detections, trackers, iou_threshold=0.3):
         for t, trk in enumerate(trackers):
             iou_matrix[d, t] = iou(det, trk)
     row_ind, col_ind = linear_assignment(-iou_matrix)
-    matched_indices = np.array(list(zip(row_ind, col_ind)))
+    if len(row_ind) == 0:
+        matched_indices = np.empty((0, 2), dtype=int)
+    else:
+        matched_indices = np.array(list(zip(row_ind, col_ind)))
 
     unmatched_detections = []
     for d, det in enumerate(detections):
@@ -281,6 +290,11 @@ class OFTracker:
             if t not in unmatched_trks:
                 d = matched[np.where(matched[:, 1] == t)[0], 0]
                 trk.update(dets1[d, :][0])
+            else:
+                trk.bboxes.append(trks[t, :4].tolist())
+                trk.misses += 1
+                trk.age += 1
+                trk.hit_streak = 0
 
         # create and initialise new trackers for unmatched detections
         for i in unmatched_dets:

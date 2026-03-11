@@ -85,11 +85,11 @@ def args_parser():
     # tracker args
     parser_12.add_argument(
         "--mode", type=str, default="online", choices=["online", "offline"])
-    parser_12.add_argument("--iou_threshold", type=float, default=0.4)
-    parser_12.add_argument("--dup_iou_threshold", type=float, default=0.9)
-    parser_12.add_argument("--max_age", type=int, default=5)
+    parser_12.add_argument("--iou_threshold", type=float, default=0.2)
+    parser_12.add_argument("--dup_iou_threshold", type=float, default=0.5)
+    parser_12.add_argument("--max_age", type=int, default=20)
     parser_12.add_argument("--min_hits", type=int, default=3)
-    parser_12.add_argument("--conf_threshold", type=float, default=0.5)
+    parser_12.add_argument("--conf_threshold", type=float, default=0.7)
     # tracker results
     parser_12.add_argument("--output_txt_path", type=str,
                            default="results/task12/optical_flow_results.txt")
@@ -98,7 +98,7 @@ def args_parser():
     parser_12.add_argument("--xml_gt_path", type=str,
                            default="datasets/AICity_data/train/S03/c010/ai_challenge_s03_c010-full_annotation.xml")
     parser_12.add_argument("--trackeval_path", type=str,
-                           default="src/utils/TrackEval")
+                           default="submodules/TrackEval")
     parser_12.add_argument("--make_video", action="store_true")
     parser_12.add_argument("--start_frame", type=int, default=200)
     parser_12.add_argument("--end_frame", type=int, default=270)
@@ -115,7 +115,7 @@ def args_parser():
     parser_21.add_argument("--obj_detector_path", type=str,
                            default="models/fasterrcnn_faster-rcnn_best.pth")
     parser_21.add_argument("--trackeval_path", type=str,
-                           default="src/utils/TrackEval")
+                           default="submodules/TrackEval")
     parser_21.add_argument("--make_video", action="store_true")
     parser_21.set_defaults(func=t21)
 

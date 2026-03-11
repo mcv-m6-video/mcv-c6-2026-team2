@@ -35,8 +35,17 @@ def prepare_trackeval_folders(
     os.makedirs(seqmap_path, exist_ok=True)
     os.makedirs(tracker_data_path, exist_ok=True)
 
+    seq_length = 0
+    with open(gt_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                frame_idx = int(line.split(',')[0])
+                if frame_idx > seq_length:
+                    seq_length = frame_idx
+
     # Create seqinfo.ini (Crucial for TrackEval to know the sequence length)
-    ini_content = f"[Sequence]\nname={sequence}\nseqLength=2141\n"
+    ini_content = f"[Sequence]\nname={sequence}\nseqLength={seq_length}\n"
     with open(os.path.join(gt_base_path, sequence, "seqinfo.ini"), "w") as f:
         f.write(ini_content)
 
@@ -73,6 +82,7 @@ def run_trackeval_script(trackeval_path, tracker_name="overlap", save_path=None)
     result = subprocess.run(command, capture_output=True, text=True)
 
     if save_path is not None:
+        print(save_path)
         with open(save_path, "w") as f:
             f.write(result.stdout)
         print(f"Metrics saved to: {save_path}")
