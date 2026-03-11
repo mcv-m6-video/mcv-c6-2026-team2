@@ -34,6 +34,14 @@ We evaluate state-of-the-art detectors, both as off-the-shelf models and by fine
 
 For a detailed explanation of the tasks, implementation steps, and experiments refer to the dedicated [Week 2 README](./Week2/README.md).
 
+## Week 2: Tracking with Optical Flow
+
+In Week 3 of Module C6, we integrate Optical Flow into a tracking algorithm from last week.
+
+We evaluate Optical Flow methods, both classic and deep learning approaches. Then we integrate the best Optical Flow method into the tracking algorithm from last week, substituting Kalmann with it. This evaluation is performed in 3 different datasets for single-camera tracking.
+
+For a detailed explanation of the tasks, implementation steps, and experiments refer to the dedicated [Week 3 README](./Week3/README.md).
+
 
 
 

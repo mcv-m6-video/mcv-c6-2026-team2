@@ -1,18 +1,122 @@
-To install pyflow:
+# Week 3: Tracking with optical flow
 
-```bash
-git submodule init # If no .gitmodules file is present
-git submodule update # This will clone the 'pyflow' repo as a submodule inside the submodules folder
+## Introduction
 
-pip install Cython numpy # Requirements for pyflow
+In the third week of the project, we integrate optical flow to last week's tracking. The goal is still to detect vehicles in road traffic sequences and maintain their identities across time.
 
-cd submodule/pyflow
-pip install . # If using conda or python's virtual environments
+This week is divided into two main blocks:
 
-# Marina: I had to use this command to make it work in the server: 
-pip install --no-build-isolation . 
+1. **Optical flow integration**: Evaluating optical flow methods and integrate their results into the tracking algorithm from the previous week.
 
-#uv pip install . # If using uv as virtual environment manager
+2. **Evaluation on S01 and S03**: Evaluating the same method as in the previous block but in 2 different datasets (S01 and S03).
+
+## Dataset
+
+For Optical Flow, we evaluate on the KITTI dataset from 2012, especifically ```image_0/000045_(10|11).png.```.
+
+Then, for testing the integration we work with the AI City Challenge sequence **S03-C010**, provided for the project.
+
+Finally, for evaluating on the other datasets we use the complete sequences S01 and S03 from the AI City Challenge, focusing on single camera tracking.
+
+## Tasks Overview
+
+The work for Week 3 is structured according to the project tasks:
+ 
+**Task 1: Optical Flow integration**
+- **Task 1.1: Optical Flow:**  
+  Evaluate different methods on the pair of images especified rom the KITTI dataset.
+
+- **Task 1.2: Integrate Optical Flow:**  
+  Adapt last week's algorithm to use optical flow to help with the final result. This is evaluated in the same dataset as last week's.
+
+**Task 2: Evaluation on S01 and S03**
+- **Task 2.1: S01:**  
+  Evaluate the developed method on sequence S01 from the AI City Challenge dataset. This does not include multi-camera tracking.
+
+- **Task 2.2: S03:**  
+  Same as Task 2.1 but with sequence S03.
+
+
+## Repository Structure
+
+The Week3 directory is organized as follows:
+
+```
+Week3/
+├── src/
+│   ├── main.py         # Entry point of Week 3
+│   ├── utils/          # Shared helper functions used across tasks
+│   ├── task1/          # Code for Task 1
+│   └── task2/          # Code for Task 2
+├── config/             # Config files 
+├── environment.yml     # Environment yaml
+└── README.md           # README for Week 3
 ```
 
-Y asi sinmas funsiona :) (seguir los pasos del repo oficial hace que se buildee en local, no en el virtual environment)
+## Installation
+To run the code in this repo you must first install all needed libraries using conda with the help of the ```environment.yml``` file. This code is tested under python version 3.12.
+
+```bash
+cd Week2
+conda env create -f environment.yml
+conda activate c6
+```
+
+### Submodules installation
+```bash
+git submodule init # If no .gitmodules file is present
+git submodule update # This will clone the 'pyflow' and TrackEval repos as submodules inside the submodules folder
+
+# Build Pyflow into the environment
+cd submodule/pyflow
+pip install --no-build-isolation . # If using conda or python's virtual environments
+```
+
+If there are some missing dependencies, refer to their respective GitHub repos to see more detailed installation instructions. [Pyflow's repo](https://github.com/pathak22/pyflow.git) [TrackEval's repo](https://github.com/JonathonLuiten/TrackEval.git).
+
+## How to run
+
+The project can be executed in two different ways:  
+(1) using a configuration file, or  
+(2) directly from the command line.
+
+---
+
+### Option 1: Using a Configuration File (Recommended for Parameter Search)
+
+You can define all parameters in a YAML configuration file and run:
+
+```bash
+python -m src.main --config config/taskX.yaml
+```
+
+### Option 2: Direct Command Line Execution
+
+You can also run a single configuration directly from the terminal:
+
+```bash
+python -m src.main taskX \
+  --video_path path/to/video.avi \
+  --gt_xml_path path/to/annotations.xml
+``` 
+Hyperparameters can also be passed manually. 
+
+For more information on each parameter run:
+```bash
+# General parameters
+python -m src.main -h
+# Task specific parameters
+python -m src.main taskX -h
+```
+
+> **Note:** Task **2.2 (S03)** does not have a standalone command. It uses the same code as task 2.1.
+
+## Task 1.1
+We kept the Faster R-CNN model from last week and tested Pyflow, Farneback, Perceiver IO and MEMFOF. We ended up keeping MEMFOF as the final model for the other tasks.
+
+## Task 1.2
+We replaced Kalmann filtering with optical flow estimations to improve the overlapping method. More details on the hyperparameters and evaluation metrics used can be found in last week's README.md.
+
+
+## Task 2.1 and Task 2.2
+More details on the evaluation metrics used can be found in last week's README.md.
