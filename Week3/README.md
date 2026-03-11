@@ -118,7 +118,9 @@ We kept the Faster R-CNN model from last week and tested Pyflow, Farneback, Perc
 
 In this task we extend the tracking-by-detection approach from the previous week by incorporating optical flow to estimate object motion between frames. Instead of relying on a predefined motion model (e.g., Kalman filtering), the tracker directly estimates displacement from pixel-level motion.
 
-![Optical Flow Tracking Pipeline](docs/optical_flow_schema.png)
+<p align="center">
+  <img src="docs/optical_flow_schema.png" width="600">
+</p>
 
 The method follows a tracking-by-motion pipeline composed of the following steps:
 
