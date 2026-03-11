@@ -69,6 +69,7 @@ def offline_tracking(
     tracker.initialize_tracks_from_dets(all_dets[0])
 
     tracks = []
+
     for frame_id in range(1, len(frames)):
         print(f"[Offline] Tracking frame {frame_id}", flush=True)
 
@@ -212,7 +213,8 @@ def main(args):
         max_age=args.max_age,
         min_hits=args.min_hits,
         conf_threshold=args.conf_threshold,
-        device=device
+        device=device,
+        predominant_of_method=args.predominant_of_method
     )
 
     print(f"Initialized tracker", flush=True)
@@ -229,10 +231,26 @@ def main(args):
 
         all_results: list[str] = []
 
+        # Write MOT lines
+        for tr in tracker.tracks:
+            x, y, xbr, ybr = tr.bboxes[-1]
+            tid = tr.id
+            w = xbr - x
+            h = ybr - y
+
+            all_results.append(
+                f"{1},{int(tid)},"
+                f"{x:.2f},{y:.2f},"
+                f"{w:.2f},{h:.2f},"
+                f"1,-1,-1,-1\n"
+            )
+        print(all_results)
+
         frame_id = 0
 
         while True:
-            print(f"Processing frame {frame_id}...", flush=True)
+            if frame_id % 10 == 0:
+                print(f"Processing frame {frame_id}...", flush=True)
             ret, frame = video.read()
 
             if not ret:
