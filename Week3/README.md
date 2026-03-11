@@ -111,15 +111,43 @@ python -m src.main taskX -h
 
 > **Note:** Task **2.2 (S03)** does not have a standalone command. It uses the same code as task 2.1.
 
-## Task 1.1
-We kept the Faster R-CNN model from last week and tested Pyflow, Farneback, Perceiver IO and MEMFOF. We ended up keeping MEMFOF as the final model for the other tasks.
+## Task 1.1 - Off-the-Shelf Optical FLow
+
+### Optical Flow Methods Evaluated
+
+Before integrating optical flow into the tracking pipeline, we evaluated several off-the-shelf optical flow methods on a reference pair of frames from the KITTI Optical Flow 2012 dataset. The goal was to select a method that provides a good trade-off between accuracy and computational efficiency.
+
+The following approaches were tested:
+
+ - **Pyflow:** A variational optical flow method based on the work of Brox et al., which estimates dense motion fields using a coarse-to-fine warping scheme. It produces accurate flow estimates but is relatively slow.
+
+ - **Farneback:** A classical polynomial expansion method implemented in OpenCV. It is very fast and suitable for real-time applications, but its motion estimates are less accurate in complex scenes.
+
+ - **Perceiver IO:** A deep learning model that predicts optical flow using a transformer-based architecture capable of handling structured inputs and outputs. It provides strong accuracy but requires GPU inference.
+
+ - **MEMFOF:** A recent deep optical flow method designed for high-resolution and memory-efficient multi-frame estimation. It achieves competitive accuracy while maintaining relatively fast inference.
+
+The comparison was performed using the standard optical flow metrics:
+
+ - **MSEN (Mean Square Error in Non-occluded areas)**
+
+ - **PEPN (Percentage of Erroneous Pixels)**
+
+ - **Runtime**
+
+### Method Selection
+
+Although Perceiver IO achieved the best accuracy, it was significantly slower than other methods.
+MEMFOF, on the other hand, provided a strong balance between accuracy and computational cost, achieving near state-of-the-art performance while remaining efficient.
+
+For this reason, **MEMFOF** was selected as the optical flow method used in the tracking pipeline for the subsequent tasks.
 
 ## Task 1.2 - Optical Flow Tracker
 
 In this task we extend the tracking-by-detection approach from the previous week by incorporating optical flow to estimate object motion between frames. Instead of relying on a predefined motion model (e.g., Kalman filtering), the tracker directly estimates displacement from pixel-level motion.
 
 <p align="center">
-  <img src="docs/optical_flow_schema.png" width="600">
+  <img src="docs/optical_flow_schema.png" width="400">
 </p>
 
 The method follows a tracking-by-motion pipeline composed of the following steps:
