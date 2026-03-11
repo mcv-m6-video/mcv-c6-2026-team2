@@ -14,7 +14,7 @@ class AICityDataset:
     ):
         self.active_video = None
         self.active_gt = None
-        self.roid = None
+        self.active_roi = None
         self.active_idx = -1
         self.transforms = transforms
 

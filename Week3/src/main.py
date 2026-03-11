@@ -106,8 +106,16 @@ def args_parser():
     parser_12.set_defaults(func=t12)
 
     # Task 2.1
-    parser_21 = subparsers.add_parser("task21")
-    parser_21.add_argument("--tracker_name", type=str, default="kalmannof")
+    parser_21 = subparsers.add_parser("task21", parents=[of_parser])
+    parser_21.add_argument("--iou_threshold", type=float, default=0.4)
+    parser_21.add_argument("--dup_iou_threshold", type=float, default=0.9)
+    parser_21.add_argument("--max_age", type=int, default=5)
+    parser_21.add_argument("--min_hits", type=int, default=3)
+    parser_21.add_argument("--conf_threshold", type=float, default=0.5)
+    parser_21.add_argument("--obj_detector_path", type=str,
+                           default="models/fasterrcnn_faster-rcnn_best.pth")
+    parser_21.add_argument("--trackeval_path", type=str,
+                           default="src/utils/TrackEval")
     parser_21.add_argument("--make_video", action="store_true")
     parser_21.set_defaults(func=t21)
 
