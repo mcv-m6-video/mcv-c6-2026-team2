@@ -1,0 +1,21 @@
+dataset_path: datasets/KITTI
+output_path: results/task12_grid_search
+
+fixed_args:
+  of_method: memfof
+  obj_detector_path: models/fasterrcnn_faster-rcnn_best.pth
+  video_path: datasets/AICity_data/train/S03/c010/vdo.avi
+  mode: online
+  predominant_of_method: median
+  xml_gt_path: datasets/AICity_data/train/S03/c010/ai_challenge_s03_c010-full_annotation.xml
+  trackeval_path: src/utils/TrackEval
+  make_video: true
+  start_frame: 200
+  end_frame: 270
+
+grid_search:
+  iou_threshold: [0.2, 0.3, 0.4]
+  dup_iou_threshold: [0.5, 0.7, 0.9]
+  max_age: [5, 10, 20]
+  min_hits: [3]
+  conf_threshold: [0.5, 0.7]
