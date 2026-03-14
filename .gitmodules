@@ -11,3 +11,9 @@
 [submodule "Week3/src/utils/TrackEval"]
 	path = Week3/src/utils/TrackEval
 	url = https://github.com/JonathonLuiten/TrackEval.git
+[submodule "Week4/submodules/TrackEval"]
+	path = Week4/submodules/TrackEval
+	url = https://github.com/JonathonLuiten/TrackEval.git
+[submodule "Week4/submodules/pyflow"]
+	path = Week4/submodules/pyflow
+	url = https://github.com/pathak22/pyflow.git
