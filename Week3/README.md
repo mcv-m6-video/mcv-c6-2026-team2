@@ -111,11 +111,77 @@ python -m src.main taskX -h
 
 > **Note:** Task **2.2 (S03)** does not have a standalone command. It uses the same code as task 2.1.
 
-## Task 1.1
-We kept the Faster R-CNN model from last week and tested Pyflow, Farneback, Perceiver IO and MEMFOF. We ended up keeping MEMFOF as the final model for the other tasks.
+## Task 1.1 - Off-the-Shelf Optical FLow
 
-## Task 1.2
-We replaced Kalmann filtering with optical flow estimations to improve the overlapping method. More details on the hyperparameters and evaluation metrics used can be found in last week's README.md.
+### Optical Flow Methods Evaluated
+
+Before integrating optical flow into the tracking pipeline, we evaluated several off-the-shelf optical flow methods on a reference pair of frames from the KITTI Optical Flow 2012 dataset. The goal was to select a method that provides a good trade-off between accuracy and computational efficiency.
+
+The following approaches were tested:
+
+ - **Pyflow:** A variational optical flow method based on the work of Brox et al., which estimates dense motion fields using a coarse-to-fine warping scheme. It produces accurate flow estimates but is relatively slow.
+
+ - **Farneback:** A classical polynomial expansion method implemented in OpenCV. It is very fast and suitable for real-time applications, but its motion estimates are less accurate in complex scenes.
+
+ - **Perceiver IO:** A deep learning model that predicts optical flow using a transformer-based architecture capable of handling structured inputs and outputs. It provides strong accuracy but requires GPU inference.
+
+ - **MEMFOF:** A recent deep optical flow method designed for high-resolution and memory-efficient multi-frame estimation. It achieves competitive accuracy while maintaining relatively fast inference.
+
+The comparison was performed using the standard optical flow metrics:
+
+ - **MSEN (Mean Square Error in Non-occluded areas)**
+
+ - **PEPN (Percentage of Erroneous Pixels)**
+
+ - **Runtime**
+
+### Method Selection
+
+Although Perceiver IO achieved the best accuracy, it was significantly slower than other methods.
+MEMFOF, on the other hand, provided a strong balance between accuracy and computational cost, achieving near state-of-the-art performance while remaining efficient.
+
+For this reason, **MEMFOF** was selected as the optical flow method used in the tracking pipeline for the subsequent tasks.
+
+## Task 1.2 - Optical Flow Tracker
+
+In this task we extend the tracking-by-detection approach from the previous week by incorporating optical flow to estimate object motion between frames. Instead of relying on a predefined motion model (e.g., Kalman filtering), the tracker directly estimates displacement from pixel-level motion.
+
+<p align="center">
+  <img src="docs/optical_flow_schema.png" width="400">
+</p>
+
+The method follows a tracking-by-motion pipeline composed of the following steps:
+
+### 1. Track Initialization
+
+In the first frame, all detected objects are assigned a unique track ID. Each track stores the current bounding box and its associated identity.
+
+### 2. Motion Estimation with Optical Flow
+
+For each tracked object, dense optical flow is computed between consecutive frames `t-1 -> t`
+The flow vectors inside each bounding box are aggregated to estimate the dominant motion of the object. In our implementation we compute the median flow vector within the bounding box, which provides a robust estimate of the object displacement.
+
+This motion vector is used to predict the new position of the bounding box in the next frame.
+
+### 3. Detection Association
+
+The predicted bounding boxes are matched with the detections in the current frame using IoU-based matching.
+The detection with the highest overlap with the predicted position inherits the same track ID, allowing the tracker to maintain consistent object identities over time.
+
+### 4. Temporal Recovery
+
+If a detection is temporarily missing, the tracker attempts to recover the track using past positions.
+The algorithm searches several previous frames for a compatible bounding box (based on IoU). If a match is found, the track is recovered and the missing detections are interpolated; otherwise a new track is initialized.
+
+### 5. Iterative Tracking
+
+This process is repeated for every new frame: optical flow is used to estimate motion, bounding boxes are shifted according to the predicted displacement, and detections are associated to maintain consistent identities.
+
+### Implementation Details
+
+Optical flow is computed using MEMFOF, which provided the best trade-off between accuracy and computational efficiency during our preliminary evaluation. By estimating motion directly from image displacement, this approach allows the tracker to adapt to complex motion patterns without assuming a fixed motion model.
+
+More details on the hyperparameters and evaluation metrics used can be found in last week's README.md.
 
 
 ## Task 2.1 and Task 2.2
