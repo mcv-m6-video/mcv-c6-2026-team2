@@ -1,3 +1,5 @@
+import os
+
 from .car import Car
 
 
@@ -31,3 +33,25 @@ class TrackManager:
             self.local_to_global[(cam_idx, car_instance.car_id)] = keep_id
 
         del self.global_tracks[merge_id]
+
+    def save(self, output_folder: str, num_cams: int, cam_names: str = None):
+        os.makedirs(output_folder, exist_ok=True)
+        for cam_idx in range(num_cams):
+            subfolder = os.path.join(output_folder, cam_names)
+            os.makedirs(output_folder, exist_ok=True)
+            detections: list[str] = []
+            for global_id, car_registry in self.global_tracks.items():
+                if len(car_registry) < 2 or cam_idx not in car_registry:
+                    continue
+
+                dets = car_registry[cam_idx].get_history()
+                for d in dets:
+                    frame_idx, xleft, ytop, xright, ybottom, conf = d
+                    formatted_det = f"{frame_idx},{global_id},{xleft},{ytop},{xright},{ybottom},{conf},-1,-1,-1"
+                    detections.append(formatted_det)
+
+            detections = sorted(detections, key=lambda x: x.split(",")[0])
+            file = os.path.join(subfolder, "pred.txt")
+
+            with open(file, "w") as f:
+                f.writelines(detections)

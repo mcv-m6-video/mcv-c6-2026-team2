@@ -42,11 +42,13 @@ class MOMCDataset:
             "homographies": [],
             "num_frames": [],
             "offsets": [],
+            "cam_name": []
         }
         sequence_folder = os.path.join(root, "train", seq)
         for subfolder in tqdm(sorted(glob.glob(os.path.join(sequence_folder, "*")))):
             data["videos"].append(os.path.join(subfolder, "vdo.avi"))
             data["rois"].append(os.path.join(subfolder, "roi.jpg"))
+            data["cam_name"].append(os.path.basename(subfolder))
 
             detections = self.__load_detections(
                 os.path.join(subfolder, "det", "det_faster_rcnn.txt")
@@ -121,3 +123,6 @@ class MOMCDataset:
     def get_max_frame(self):
         frame_idx = np.argmax(self.data["num_frames"])
         max_frames = self.data["num_frames"][frame_idx]
+    
+    def get_cam_names(self):
+        return self.data["cam_name"]

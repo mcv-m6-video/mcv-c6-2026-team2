@@ -29,6 +29,7 @@ def args_parser():
     train_matcher_subparser.set_defaults(func=train_match)
 
     matching_subparser = subparsers.add_parser("matching", parents=[match_model_parser])
+    matching_subparser = subparsers.add_parser("--output_folder", type=str, default="results/S01")
     matching_subparser.set_defaults(func=match)
 
     evaluation_subparser = subparsers.add_parser("evaluate")

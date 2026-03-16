@@ -75,6 +75,7 @@ def main(args):
     seq = args.seq
 
     match_checkpoint = args.match_checkpoint
+    output_folder = args.output_folder
 
     # Create dataset
     dataset = MOMCDataset(dataset_root, seq)
@@ -115,7 +116,9 @@ def main(args):
             valid_frame_read = True
 
             for d in dets:
-                f_idx, car_id, xleft, ytop, xright, ybottom, _, _, _, _ = d.split()
+                f_idx, car_id, xleft, ytop, xright, ybottom, confidence, _, _, _ = (
+                    d.split()
+                )
 
                 car_id = int(car_id)
                 bbox = np.array(
@@ -131,7 +134,12 @@ def main(args):
                 car = local_cars_registry[cam_idx][car_id]
 
                 car.add_detection(
-                    car_image, bbox, cam_list[cam_idx].homography, int(f_idx), cam_idx
+                    car_image,
+                    bbox,
+                    cam_list[cam_idx].homography,
+                    int(f_idx),
+                    cam_idx,
+                    confidence,
                 )
 
                 t_manager.register_car(cam_idx, car_id, car)
@@ -217,3 +225,6 @@ def main(args):
 
         # Move to the next frame
         frame_idx += 1
+
+    # Save detections per camera
+    t_manager.save(output_folder, len(cam_list), cam_names=dataset.get_cam_names())
