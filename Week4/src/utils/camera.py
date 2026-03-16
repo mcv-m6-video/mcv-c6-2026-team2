@@ -1,9 +1,9 @@
 import cv2
 import numpy as np
-from shapely import intersects
 from shapely.geometry import LineString, Polygon
 
 from .car import Car
+
 
 class Camera:
     def __init__(
@@ -26,8 +26,8 @@ class Camera:
         self.gps_polygon, self.centroid = self.compute_gps_bbox(
             resolution, homography
         )  # Bbox in GPS coordinates
-        self.overlapping_cameras = []  # List of overlapping cameras
-        self.adjacent_cameras = []  # List of adjacent cameras
+        self.overlapping_cameras: list["Camera"] = []  # List of overlapping cameras
+        self.adjacent_cameras: list["Camera"] = []  # List of adjacent cameras
 
     def __contains__(self, item):
         if isinstance(item, Car):
