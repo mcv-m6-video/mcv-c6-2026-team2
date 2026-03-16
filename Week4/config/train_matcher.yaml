@@ -1,0 +1,24 @@
+data_root: dataset/AI_CITY_CHALLENGE_2022_TRAIN
+output_dir: outputs/reid_cityflow
+
+backbone: densenet121
+embedding_dim: 512
+img_size: 256
+
+train_sequences: S01,S04
+val_sequences: ""
+test_sequences: S03
+val_ratio: 0.2
+
+epochs: 60
+batch_size: 32
+num_instances: 4
+lr: 0.0003
+weight_decay: 0.0005
+margin: 0.3
+
+ce_weight: 1.0
+tri_weight: 1.0
+num_workers: 4
+seed: 42
+log_interval: 50
