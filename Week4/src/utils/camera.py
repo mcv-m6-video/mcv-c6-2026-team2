@@ -1,8 +1,9 @@
 import cv2
 import numpy as np
+from shapely import intersects
+from shapely.geometry import LineString, Polygon
 
 from .car import Car
-
 
 class Camera:
     def __init__(
@@ -22,30 +23,15 @@ class Camera:
         )
         self.num_frames = num_frames
 
-        self.gps_bbox = self.compute_gps_bbox(
+        self.gps_polygon, self.centroid = self.compute_gps_bbox(
             resolution, homography
         )  # Bbox in GPS coordinates
         self.overlapping_cameras = []  # List of overlapping cameras
         self.adjacent_cameras = []  # List of adjacent cameras
 
-    def __contains__(self, other):
-        # Vaya locura estoy COOKING
-        # This checks whether two cameras overlap or a detected car appears in this camera
-        if isinstance(other, Car) or isinstance(other, Camera):
-            self_xleft, self_ytop, self_xright, self_ybottom = self.gps_bbox
-
-            other_bbox = (
-                other.gps_bbox[-1] if isinstance(other, Car) else other.gps_bbox
-            )
-            other_xleft, other_ytop, other_xright, other_ybottom = other_bbox
-
-            xleft = max(other_xleft, self_xleft)
-            ytop = max(other_ytop, self_ytop)
-            xright = max(other_xright, self_xright)
-            ybottom = max(other_ybottom, self_ybottom)
-
-            return xright >= xleft and ybottom >= ytop
-
+    def __contains__(self, item):
+        if isinstance(item, Car):
+            return self.gps_polygon.intersects(item.gps_bbox[-1])
         return NotImplemented
 
     def compute_gps_bbox(self, resolution: tuple[int, int], homography: np.ndarray):
@@ -54,11 +40,46 @@ class Camera:
             [[[0, 0], [0, height - 1], [width - 1, height - 1], [width - 1, 0]]],
             dtype=np.float32,
         )
-        gps_bbox = cv2.perspectiveTransform(bbox, homography)
-        return gps_bbox
+        gps_polygon = cv2.perspectiveTransform(bbox, homography).squeeze()
+        gps_polygon = Polygon(gps_polygon)
+        return gps_polygon, gps_polygon.centroid
 
     def add_overlapping_camera(self, cam):
         self.overlapping_cameras.append(cam)
 
     def add_adjacent_camera(self, cam):
         self.adjacent_cameras.append(cam)
+
+
+def compute_relationships(camera_list: list[Camera]):
+    num_cams = len(camera_list)
+
+    for i in range(num_cams):
+        cam_i = camera_list[i]
+
+        for j in range(i + 1, num_cams):
+            cam_j = camera_list[j]
+
+            if cam_i.gps_polygon.intersects(cam_j.gps_polygon):
+                camera_list[i].add_overlapping_camera(camera_list[j])
+                camera_list[j].add_overlapping_camera(camera_list[i])
+                continue
+
+            los_line = LineString([cam_i.centroid, cam_j.centroid])
+            is_blocked = False
+
+            for k in range(num_cams):
+                if k == i or k == j:
+                    continue
+
+                cam_k = camera_list[k]
+
+                if los_line.intersects(cam_k.gps_polygon):
+                    is_blocked = True
+                    break
+
+            if not is_blocked:
+                camera_list[i].add_adjacent_camera(camera_list[j])
+                camera_list[j].add_adjacent_camera(camera_list[i])
+
+    return camera_list

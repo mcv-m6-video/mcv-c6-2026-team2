@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 
+from shapely.geometry import Polygon
+
 
 class Car:
     def __init__(self, car_id: int):
@@ -9,7 +11,7 @@ class Car:
         self.pixel_bbox = []  # Bboxes in frames coordinates
         self.gps_bbox = []  # Bboxes in GPS coordinates
         self.frame_idx = []  # Indexes (independent from camera)
-        self.cam_idx = []  # Camera indexes
+        self.cam_idx = None  # Camera index
         self.image = None  # Last detected instance
 
         # Momentum like direction, to get possible next camera to check.
@@ -17,9 +19,9 @@ class Car:
         self.gps_direction = None
 
     def __eq__(self, other):
-        # This checks if two cars are the same (uses the siamese network, OHBOI I'M COOKING)
+        # This checks if two cars are the same (uses the siamese network)
         if isinstance(other, Car):
-            # TODO: Use model for matching (I'm a genious)
+            # TODO: Use model for matching
             pass
         return NotImplemented
 
@@ -34,18 +36,19 @@ class Car:
         self.image = image
         self.pixel_bbox.append(bbox)
 
-        if bbox.ndim == 2:
-            bbox = bbox[np.newaxis, ...]
+        pts = np.array(
+            [[
+                (bbox[0], bbox[1]),
+                (bbox[2], bbox[1]),
+                (bbox[2], bbox[3]),
+                (bbox[0], bbox[3]),
+            ]],
+            dtype=np.float32,
+        )
 
-        gps_coords = cv2.perspectiveTransform(bbox, homography)
-        self.gps_bbox.append(gps_coords)
+        gps_coords = cv2.perspectiveTransform(pts, homography).squeeze()
+        self.gps_bbox.append(Polygon(gps_coords))
 
         self.frame_idx.append(frame_idx)
-        self.cam_idx.append(camera_idx)
+        self.cam_idx = camera_idx
 
-    def merge_cars(self, other):
-        if isinstance(other, Car):
-            self.pixel_bbox.extend(other.pixel_bbox)
-            self.gps_bbox.extend(other.gps_bbox)
-            self.frame_idx.extend(other.frame_idx)
-            self.cam_idx.extend(other.cam_idx)
