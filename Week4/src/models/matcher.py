@@ -94,14 +94,19 @@ class ReIDMatcher:
         return F.normalize(mean_embedding, dim=0)
 
     @torch.no_grad()
+    def get_normalized_mean(self, embedding_mean: np.ndarray):
+        mean_tensor = torch.from_numpy(embedding_mean).to(self.device)
+        return F.normalize(mean_tensor, dim=0)
+
+    @torch.no_grad()
     def similarity(
         self,
         embeddings_a: Sequence[np.ndarray | torch.Tensor],
         embeddings_b: Sequence[np.ndarray | torch.Tensor],
     ) -> float:
         """Computes cosine similarity between two averaged car embeddings."""
-        emb_a = self.average_embeddings(embeddings_a)
-        emb_b = self.average_embeddings(embeddings_b)
+        emb_a = torch.from_numpy(embeddings_a).to(self.device)
+        emb_b = torch.from_numpy(embeddings_b).to(self.device)
         similarity = F.cosine_similarity(emb_a.unsqueeze(0), emb_b.unsqueeze(0)).item()
         return similarity
 

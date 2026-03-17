@@ -18,6 +18,8 @@ class Car:
         self.confidence: list[float] = []
         # Embeddings for all detected instances
         self.embeddings: list[np.ndarray] = []
+        self.embedding_mean: np.ndarray = None
+        self.embedding_count: int = 0
 
         # Momentum like direction, to get possible next camera to check.
         # Maybe I can compute this on demand?
@@ -26,9 +28,9 @@ class Car:
     def __eq__(self, other):
         # This checks if two cars are the same (uses the siamese network)
         if isinstance(other, Car):
-            if len(self.embeddings) == 0 or len(other.embeddings) == 0:
+            if self.embedding_mean is None or other.embedding_mean is None:
                 return False
-            return compare_car_embeddings(self.embeddings, other.embeddings)
+            return compare_car_embeddings(self.embedding_mean, other.embedding_mean)
         return NotImplemented
 
     def add_detection(
@@ -44,7 +46,13 @@ class Car:
         matcher = get_matcher()
         if matcher is not None and image is not None and image.size > 0:
             embedding = matcher.embed_image(image).detach().cpu().numpy()
-            self.embeddings.append(embedding)
+
+            self.embedding_count += 1
+            if self.embedding_mean is None:
+                self.embedding_mean = embedding.copy()
+            else:
+                self.embedding_mean += (embedding - self.embedding_mean) / self.embedding_count
+
         self.pixel_bbox.append(bbox)
 
         xleft, ytop, xright, ybottom = bbox

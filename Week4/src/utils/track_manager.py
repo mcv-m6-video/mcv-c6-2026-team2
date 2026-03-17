@@ -9,7 +9,7 @@ class TrackManager:
         # A global track may contain several local tracks from the same camera
         # after incorrect merges, so we keep them nested by camera and local id.
         self.global_tracks: dict[int, dict[int, dict[int, Car]]] = {}
-        self.next_global_id = 0
+        self.next_global_id = 1
 
     def register_car(self, camera_idx: int, local_car_id: int, car_instance: Car):
         if (camera_idx, local_car_id) not in self.local_to_global:
@@ -52,7 +52,7 @@ class TrackManager:
 
         detections: list[str] = []
         for dict_cam_idx, cam_name in enumerate(cam_names):
-            cam_idx = int(cam_name[1:]) - 1
+            cam_idx = int(cam_name[1:])
 
             cam_dets: list[str] = []
             for global_id, car_registry in self.global_tracks.items():
@@ -63,7 +63,7 @@ class TrackManager:
                     dets = car_instance.get_history()
                     for d in dets:
                         frame_idx, xleft, ytop, xright, ybottom, conf = d
-                        formated_det = f"{cam_idx},{global_id},{frame_idx},{xleft},{ytop},{xright - xleft},{ybottom - ytop},-1,-1\n"
+                        formated_det = f"{cam_idx},{global_id},{frame_idx},{int(xleft)},{int(ytop)},{int(xright - xleft)},{int(ybottom - ytop)},-1,-1\n"
                         cam_dets.append(formated_det)
 
             cam_dets.sort(key=lambda x: int(x.split(",")[1]))
