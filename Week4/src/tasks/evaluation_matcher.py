@@ -461,15 +461,44 @@ def plot_precision_recall_curve(metrics_by_threshold: list[dict], output_path: P
     recalls = [m["pairwise_decision_metrics"]["recall"] for m in metrics_by_threshold]
     precisions = [m["pairwise_decision_metrics"]["precision"] for m in metrics_by_threshold]
     thresholds = [m["threshold"] for m in metrics_by_threshold]
+    fair_coin = metrics_by_threshold[0]["random_baselines"]["fair_coin"] if metrics_by_threshold else None
+    prevalence_matched = (
+        metrics_by_threshold[0]["random_baselines"]["prevalence_matched"]
+        if metrics_by_threshold
+        else None
+    )
 
     plt.figure(figsize=(7, 5))
-    plt.plot(recalls, precisions, marker="o")
+    plt.plot(recalls, precisions, marker="o", label="Matcher sweep")
     for recall, precision, threshold in zip(recalls, precisions, thresholds):
         plt.annotate(f"{threshold:.2f}", (recall, precision), fontsize=8)
+
+    if fair_coin is not None:
+        plt.scatter(
+            fair_coin["recall"],
+            fair_coin["precision"],
+            marker="x",
+            s=90,
+            label="Random baseline: fair coin",
+        )
+
+    if prevalence_matched is not None:
+        plt.scatter(
+            prevalence_matched["recall"],
+            prevalence_matched["precision"],
+            marker="^",
+            s=90,
+            label="Random baseline: prevalence-matched",
+        )
+
     plt.xlabel("Recall")
     plt.ylabel("Precision")
     plt.title("Matcher Pairwise Precision-Recall Curve")
     plt.grid(True, alpha=0.3)
+    plt.legend(
+        title="Point labels show threshold values",
+        loc="best",
+    )
     plt.tight_layout()
     plt.savefig(output_path)
     plt.close()
