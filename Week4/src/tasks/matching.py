@@ -79,11 +79,12 @@ def main(args):
     seq = args.seq
 
     match_checkpoint = args.match_checkpoint
+    match_threshold = args.match_threshold
 
     tracking_file = args.tracking_file
     output_folder = args.output_folder
 
-    initialize_matcher(match_checkpoint)
+    initialize_matcher(match_checkpoint, similarity_threshold=match_threshold)
 
     # Create dataset
     dataset = MOMCDataset(dataset_root, seq, tracking_file)

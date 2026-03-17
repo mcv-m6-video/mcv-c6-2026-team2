@@ -1,6 +1,7 @@
 
 import argparse
 
+from .models.matcher import DEFAULT_SIMILARITY_THRESHOLD
 from .tasks import evaluate, match, track, train_match, evaluate_matcher
 
 
@@ -42,6 +43,11 @@ def args_parser():
     train_matcher_subparser.set_defaults(func=train_match)
 
     matching_subparser = subparsers.add_parser("matching", parents=[match_model_parser])
+    matching_subparser.add_argument(
+        "--match_threshold",
+        type=float,
+        default=DEFAULT_SIMILARITY_THRESHOLD,
+    )
     matching_subparser.add_argument("--tracking_file", type=str, default="mtsc/mtsc_deepsort_mask_rcnn.txt")
     matching_subparser.add_argument("--output_folder", type=str, default="results")
     matching_subparser.set_defaults(func=match)
