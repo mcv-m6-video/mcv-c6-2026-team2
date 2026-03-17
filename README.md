@@ -34,7 +34,7 @@ We evaluate state-of-the-art detectors, both as off-the-shelf models and by fine
 
 For a detailed explanation of the tasks, implementation steps, and experiments refer to the dedicated [Week 2 README](./Week2/README.md).
 
-## Week 2: Tracking with Optical Flow
+## Week 3: Tracking with Optical Flow
 
 In Week 3 of Module C6, we integrate Optical Flow into a tracking algorithm from last week.
 
@@ -42,6 +42,9 @@ We evaluate Optical Flow methods, both classic and deep learning approaches. The
 
 For a detailed explanation of the tasks, implementation steps, and experiments refer to the dedicated [Week 3 README](./Week3/README.md).
 
+## Week 4: Multi Camera Tracking
 
+In Week 4 of Module C6, we extend the tracking problem from a single-camera setup to a multi-camera scenario, where the goal is to maintain consistent identities of vehicles across different viewpoints and non-overlapping fields of view.
 
+For a detailed explanation of the tasks, implementation steps, and experiments refer to the dedicated [Week 4 README](./Week4/README.md).
 
