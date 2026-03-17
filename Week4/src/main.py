@@ -29,10 +29,17 @@ def args_parser():
     train_matcher_subparser.set_defaults(func=train_match)
 
     matching_subparser = subparsers.add_parser("matching", parents=[match_model_parser])
-    matching_subparser = subparsers.add_parser("--output_folder", type=str, default="results/S01")
+    matching_subparser.add_argument("--output_folder", type=str, default="results/S01")
     matching_subparser.set_defaults(func=match)
 
     evaluation_subparser = subparsers.add_parser("evaluate")
+    evaluation_subparser.add_argument("--gt", required=True, type=str)
+    evaluation_subparser.add_argument("--pred", required=True, type=str)
+    evaluation_subparser.add_argument("--seq", required=True, type=str)
+    evaluation_subparser.add_argument("--dstype", type=str, default="train")
+    evaluation_subparser.add_argument("--roidir", type=str, default="datasets/AI_CITY_CHALLENGE_2022_TRAIN")
+    evaluation_subparser.add_argument("-m", "--mread", action="store_true")
+    evaluation_subparser.set_defaults(func=evaluate)
     evaluation_subparser.set_defaults(func=evaluate)
 
     args = main_parser.parse_args()
@@ -42,7 +49,6 @@ def args_parser():
 
 def main(args):
     args.func(args)
-
 
 if __name__ == "__main__":
     args = args_parser()
