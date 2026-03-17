@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 from shapely.geometry import Polygon, Point
 
+from src.models.matcher import compare_car_embeddings, get_matcher
+
 
 class Car:
     def __init__(self, car_id: int):
@@ -12,48 +14,22 @@ class Car:
         self.frame_idx: list[int] = []  # Indexes (independent from camera)
         self.cam_idx: int = None  # Camera index
         self.image: np.ndarray = None  # Last detected instance
-        self.confidence: list[float] = []  # Confidences of the bbox in each frame
+        # Confidences of the bbox in each frame
+        self.confidence: list[float] = []
+        # Embeddings for all detected instances
+        self.embeddings: list[np.ndarray] = []
 
         # Momentum like direction, to get possible next camera to check.
         # Maybe I can compute this on demand?
         self.gps_direction = None
 
     def __eq__(self, other):
-            return True
-            # ---------------------------------------------------------
-            # DUMMY BASELINE: HSV Color Histogram Comparison
-            # ---------------------------------------------------------
-            if not isinstance(other, Car):
-                return NotImplemented
-
-            # 1. Safety check: Ensure both cars actually have image crops
-            if self.image is None or other.image is None:
+        # This checks if two cars are the same (uses the siamese network)
+        if isinstance(other, Car):
+            if len(self.embeddings) == 0 or len(other.embeddings) == 0:
                 return False
-
-            # 2. Safety check: Ensure crops aren't empty (0x0 pixels from edge clipping)
-            if self.image.size == 0 or other.image.size == 0:
-                return False
-
-            # 3. Convert both images from BGR to HSV
-            hsv1 = cv2.cvtColor(self.image, cv2.COLOR_BGR2HSV)
-            hsv2 = cv2.cvtColor(other.image, cv2.COLOR_BGR2HSV)
-
-            # 4. Calculate 2D histograms for Hue (Color) and Saturation (Intensity)
-            # We use 50 bins for Hue and 60 bins for Saturation
-            hist1 = cv2.calcHist([hsv1], [0, 1], None, [50, 60], [0, 180, 0, 256])
-            hist2 = cv2.calcHist([hsv2], [0, 1], None, [50, 60], [0, 180, 0, 256])
-
-            # 5. Normalize! (Crucial so a giant truck and a tiny car far away can be compared fairly)
-            cv2.normalize(hist1, hist1, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
-            cv2.normalize(hist2, hist2, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
-
-            # 6. Compare using Correlation (Returns 1.0 for a perfect match, down to -1.0)
-            similarity = cv2.compareHist(hist1, hist2, cv2.HISTCMP_CORREL)
-
-            # 7. Set your threshold! (0.85 to 0.90 is usually a good starting point)
-            MATCH_THRESHOLD = 0.85
-            
-            return similarity >= MATCH_THRESHOLD
+            return compare_car_embeddings(self.embeddings, other.embeddings)
+        return NotImplemented
 
     def add_detection(
         self,
@@ -65,6 +41,10 @@ class Car:
         confidence: int,
     ):
         self.image = image
+        matcher = get_matcher()
+        if matcher is not None and image is not None and image.size > 0:
+            embedding = matcher.embed_image(image).detach().cpu().numpy()
+            self.embeddings.append(embedding)
         self.pixel_bbox.append(bbox)
 
         xleft, ytop, xright, ybottom = bbox

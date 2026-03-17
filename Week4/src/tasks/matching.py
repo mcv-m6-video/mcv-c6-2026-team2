@@ -1,6 +1,7 @@
 import math
 
 import numpy as np
+from src.models.matcher import initialize_matcher
 from src.utils.camera import Camera, compute_relationships
 from src.utils.car import Car
 from src.utils.dataset import MOMCDataset
@@ -82,6 +83,8 @@ def main(args):
     tracking_file = args.tracking_file
     output_folder = args.output_folder
 
+    initialize_matcher(match_checkpoint)
+
     # Create dataset
     dataset = MOMCDataset(dataset_root, seq, tracking_file)
 
@@ -136,7 +139,8 @@ def main(args):
                     dtype=np.float32,
                 )
 
-                car_image = frame[int(ytop) : int(ybottom), int(xleft) : int(xright)]
+                car_image = frame[int(ytop): int(
+                    ybottom), int(xleft): int(xright)]
 
                 if car_id not in local_cars_registry[cam_idx]:
                     local_cars_registry[cam_idx][car_id] = Car(car_id)
