@@ -13,18 +13,19 @@ class Camera:
         homography: np.ndarray,
         offset: float,
         num_frames: int,
+        roi_mask: np.ndarray
     ):
         # Declare attributes (and Initialize if possible)
         self.camera_idx = camera_idx  # Camera index (ID)
         self.resolution = resolution  # Video resolution (W, H)
-        self.homography = homography  # Homography that maps to GPS coordinates
+        self.homography = np.linalg.inv(homography)  # Homography that maps to GPS coordinates
         self.offset = (
             offset  # Temporal offset from respect to an initial time (seconds)
         )
         self.num_frames = num_frames
 
         self.gps_polygon, self.centroid = self.compute_gps_bbox(
-            resolution, homography
+            homography, roi_mask
         )  # Bbox in GPS flat coordinates (meters)
         self.overlapping_cameras: list["Camera"] = []  # List of overlapping cameras
         self.adjacent_cameras: list["Camera"] = []  # List of adjacent cameras
@@ -34,14 +35,21 @@ class Camera:
             return self.gps_polygon.intersects(item.gps_bbox[-1])
         return NotImplemented
 
-    def compute_gps_bbox(self, resolution: tuple[int, int], homography: np.ndarray):
-        width, height = resolution
-        bbox = np.array(
-            [[[0, 0], [0, height - 1], [width - 1, height - 1], [width - 1, 0]]],
-            dtype=np.float32,
-        )
-        gps_polygon = cv2.perspectiveTransform(bbox, homography).squeeze()
-        gps_polygon = Polygon(gps_polygon)
+    def compute_gps_bbox(self, homography: np.ndarray, roi_mask: np.ndarray):
+        _, thresh = cv2.threshold(roi_mask, 127, 255, cv2.THRESH_BINARY)
+        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        largest_contour = max(contours, key=cv2.contourArea)
+
+        epsilon = 0.005 * cv2.arcLength(largest_contour, True)
+        approx_polygon = cv2.approxPolyDP(largest_contour, epsilon, True)
+
+        pts = approx_polygon.reshape(1, -1, 2).astype(np.float32)
+        gps_points = cv2.perspectiveTransform(pts, homography).squeeze()
+        gps_polygon = Polygon(gps_points)
+
+        if not gps_polygon.is_valid:
+            gps_polygon = gps_polygon.buffer(0)
+        
         return gps_polygon, gps_polygon.centroid
 
     def add_overlapping_camera(self, cam):

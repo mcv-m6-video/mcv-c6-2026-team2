@@ -8,7 +8,7 @@ def args_parser():
     dataset_parser = argparse.ArgumentParser(add_help=False)
 
     dataset_parser.add_argument("--dataset_root", type=str, default="datasets/AI_CITY_CHALLENGE_2022_TRAIN")
-    dataset_parser.add_argument("--seq", type=str, default="S01")
+    dataset_parser.add_argument("--seq", type=str, default="S03")
 
     det_model_parser = argparse.ArgumentParser(add_help=False)
     det_model_parser.add_argument("--det_checkpoint", type=str, default="checkpoints/fasterrcnn_faster-rcnn_best.pth")
@@ -29,7 +29,8 @@ def args_parser():
     train_matcher_subparser.set_defaults(func=train_match)
 
     matching_subparser = subparsers.add_parser("matching", parents=[match_model_parser])
-    matching_subparser.add_argument("--output_folder", type=str, default="results/S01")
+    matching_subparser.add_argument("--tracking_file", type=str, default="mtsc/mtsc_deepsort_mask_rcnn.txt")
+    matching_subparser.add_argument("--output_folder", type=str, default="results")
     matching_subparser.set_defaults(func=match)
 
     evaluation_subparser = subparsers.add_parser("evaluate")
@@ -39,7 +40,6 @@ def args_parser():
     evaluation_subparser.add_argument("--dstype", type=str, default="train")
     evaluation_subparser.add_argument("--roidir", type=str, default="datasets/AI_CITY_CHALLENGE_2022_TRAIN")
     evaluation_subparser.add_argument("-m", "--mread", action="store_true")
-    evaluation_subparser.set_defaults(func=evaluate)
     evaluation_subparser.set_defaults(func=evaluate)
 
     args = main_parser.parse_args()

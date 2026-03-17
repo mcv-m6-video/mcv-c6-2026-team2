@@ -7,9 +7,9 @@ from tqdm import tqdm
 
 
 class MOMCDataset:
-    def __init__(self, root: str, seq: str):
+    def __init__(self, root: str, seq: str, tracking_file: str):
         # Declare attributes (and Initialize if possible)
-        self.data = self.__get_videos(root, seq)
+        self.data = self.__get_videos(root, seq, tracking_file)
         self.start_videos()
 
     def __getitem__(self, index: tuple[int, int]):
@@ -33,7 +33,7 @@ class MOMCDataset:
 
         return frame, dets
 
-    def __get_videos(self, root: str, seq: str):
+    def __get_videos(self, root: str, seq: str, tracking_file: str):
         print("Fetching videos and groundtruth...")
         data = {
             "videos": [],
@@ -52,7 +52,7 @@ class MOMCDataset:
             data["cam_name"].append(os.path.basename(subfolder))
 
             detections = self.__load_detections(
-                os.path.join(subfolder, "det", "det_faster_rcnn.txt")
+                os.path.join(subfolder, tracking_file)
             )
             data["dets"].append(detections)
 
@@ -71,7 +71,7 @@ class MOMCDataset:
         with open(cam_framenum_file, "r") as f:
             for line in f.readlines():
                 line = line.strip()
-                num_frames = line.split(" ")[1]
+                num_frames = int(line.split(" ")[1])
                 data["num_frames"].append(num_frames)
 
         cam_offset_file = os.path.join(root, "cam_timestamp", seq + ".txt")
@@ -117,7 +117,10 @@ class MOMCDataset:
         num_frames = self.data["num_frames"][idx]
         offsets = self.data["offsets"][idx]
 
-        return homography, num_frames, offsets, (width, height)
+        roi_path = self.data["rois"][idx]
+        roi_mask = cv2.imread(roi_path, cv2.IMREAD_GRAYSCALE)
+
+        return homography, num_frames, offsets, (width, height), roi_mask
 
     def get_max_frame(self):
         frame_idx = np.argmax(self.data["num_frames"])

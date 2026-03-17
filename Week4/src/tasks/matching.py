@@ -1,8 +1,11 @@
+import math
+
 import numpy as np
 from src.utils.camera import Camera, compute_relationships
 from src.utils.car import Car
 from src.utils.dataset import MOMCDataset
 from src.utils.track_manager import TrackManager
+from tqdm import tqdm
 
 
 def evaluate_car_state(
@@ -10,7 +13,7 @@ def evaluate_car_state(
     curr_cam: Camera,
     t_manager: TrackManager,
     border_threshold_pixels: int = 50,
-    overlap_threshold: float = 0.8,
+    overlap_threshold: float = 0.5,
 ):
     # Testing overlapping cameras
     valid_overlap_cams: list[Camera] = []
@@ -57,7 +60,7 @@ def evaluate_car_state(
     if min_dist_to_border < border_threshold_pixels:
         return {
             "action": "ADJACENCY",
-            "target_cameras": curr_cam.adjacent_cameras,
+            "target_cameras": list(curr_cam.adjacent_cameras),
             "life_frames": 30,
         }
 
@@ -75,18 +78,20 @@ def main(args):
     seq = args.seq
 
     match_checkpoint = args.match_checkpoint
+
+    tracking_file = args.tracking_file
     output_folder = args.output_folder
 
     # Create dataset
-    dataset = MOMCDataset(dataset_root, seq)
+    dataset = MOMCDataset(dataset_root, seq, tracking_file)
 
     # Initialize TrackingManager
     t_manager = TrackManager()
 
     # Initialize CameraManager
     cam_list: list[Camera] = [
-        Camera(idx, resolution, homography, offset, num_frames)
-        for idx, (homography, num_frames, offset, resolution) in enumerate(
+        Camera(idx, resolution, homography, offset, num_frames, roi_mask)
+        for idx, (homography, num_frames, offset, resolution, roi_mask) in enumerate(
             dataset.get_all_cameras()
         )
     ]
@@ -100,6 +105,7 @@ def main(args):
     overlap_queue = {}
     adjacency_queue = {}
 
+    pbar = tqdm(total=dataset.get_max_frame(), desc="Tracking vehicles", unit="frame")
     while True:
         active_cars_current_frame: dict[int, list[Car]] = {
             i: [] for i in range(len(cam_list))
@@ -116,13 +122,17 @@ def main(args):
             valid_frame_read = True
 
             for d in dets:
-                f_idx, car_id, xleft, ytop, xright, ybottom, confidence, _, _, _ = (
+                f_idx, car_id, xleft, ytop, width, height, confidence, _, _, _ = (
                     d.split(",")
                 )
+                xleft = float(xleft)
+                ytop = float(ytop)
+                xright = xleft + float(width)
+                ybottom = ytop + float(height)
 
                 car_id = int(car_id)
                 bbox = np.array(
-                    [float(xleft), float(ytop), float(xright), float(ybottom)],
+                    [xleft, ytop, xright, ybottom],
                     dtype=np.float32,
                 )
 
@@ -180,18 +190,34 @@ def main(args):
                     target_active_cars: list[Car] = active_cars_current_frame[
                         target_cam.camera_idx
                     ]
-                    candidate_cars = []
-                    max_search_radius_meters = 8.0
+                    candidate_cars: list[tuple[float, Car]] = []
+                    max_search_radius_meters = 15.0
+
+                    lon1, lat1 = source_centroid.x, source_centroid.y
 
                     for target_car in target_active_cars:
                         target_centroid = target_car.gps_bbox[-1].centroid
-                        dist = source_centroid.distance(target_centroid)
+                        lon2, lat2 = target_centroid.x, target_centroid.y
 
-                        if dist <= max_search_radius_meters:
-                            candidate_cars.append((dist, target_car))
+                        avg_lat_rad = math.radians((lat1 + lat2) / 2.0)
+                        dx = (lon2 - lon1) * math.cos(avg_lat_rad)
+                        dy = lat2 - lat1
+
+                        dist_meters = 111319.0 * math.sqrt(dx**2 + dy**2)
+
+                        if dist_meters <= max_search_radius_meters:
+                            candidate_cars.append((dist_meters, target_car))
 
                     candidate_cars.sort(key=lambda x: x[0])
 
+                    if len(candidate_cars) > 0:
+                        tqdm.write(
+                            f"[Frame {frame_idx}] Cam {source_cam_idx} Car {source_car_id} found {len(candidate_cars)} close candidates in Cam {target_cam.camera_idx}:"
+                        )
+                        for d, t_car in candidate_cars:
+                            tqdm.write(
+                                f"   -> Target Car {t_car.car_id} at distance {d:.2f} units"
+                            )
                     matched = False
 
                     for dist, target_car in candidate_cars:
@@ -238,6 +264,7 @@ def main(args):
 
         # Move to the next frame
         frame_idx += 1
+        pbar.update(1)
 
     # Save detections per camera
     t_manager.save(output_folder, cam_names=dataset.get_cam_names())

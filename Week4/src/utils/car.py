@@ -19,11 +19,41 @@ class Car:
         self.gps_direction = None
 
     def __eq__(self, other):
-        # This checks if two cars are the same (uses the siamese network)
-        if isinstance(other, Car):
-            # TODO: Use model for matching
-            pass
-        return NotImplemented
+            return True
+            # ---------------------------------------------------------
+            # DUMMY BASELINE: HSV Color Histogram Comparison
+            # ---------------------------------------------------------
+            if not isinstance(other, Car):
+                return NotImplemented
+
+            # 1. Safety check: Ensure both cars actually have image crops
+            if self.image is None or other.image is None:
+                return False
+
+            # 2. Safety check: Ensure crops aren't empty (0x0 pixels from edge clipping)
+            if self.image.size == 0 or other.image.size == 0:
+                return False
+
+            # 3. Convert both images from BGR to HSV
+            hsv1 = cv2.cvtColor(self.image, cv2.COLOR_BGR2HSV)
+            hsv2 = cv2.cvtColor(other.image, cv2.COLOR_BGR2HSV)
+
+            # 4. Calculate 2D histograms for Hue (Color) and Saturation (Intensity)
+            # We use 50 bins for Hue and 60 bins for Saturation
+            hist1 = cv2.calcHist([hsv1], [0, 1], None, [50, 60], [0, 180, 0, 256])
+            hist2 = cv2.calcHist([hsv2], [0, 1], None, [50, 60], [0, 180, 0, 256])
+
+            # 5. Normalize! (Crucial so a giant truck and a tiny car far away can be compared fairly)
+            cv2.normalize(hist1, hist1, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
+            cv2.normalize(hist2, hist2, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
+
+            # 6. Compare using Correlation (Returns 1.0 for a perfect match, down to -1.0)
+            similarity = cv2.compareHist(hist1, hist2, cv2.HISTCMP_CORREL)
+
+            # 7. Set your threshold! (0.85 to 0.90 is usually a good starting point)
+            MATCH_THRESHOLD = 0.85
+            
+            return similarity >= MATCH_THRESHOLD
 
     def add_detection(
         self,
@@ -38,15 +68,16 @@ class Car:
         self.pixel_bbox.append(bbox)
 
         xleft, ytop, xright, ybottom = bbox
-        xcenter = (xleft - xright) / 2.0
+        xcenter = (xleft + xright) / 2.0
 
         pts = np.array([[[xcenter, ybottom]]], dtype=np.float32)
 
         gps_point = cv2.perspectiveTransform(pts, homography).squeeze()
 
         radius_meters = 2.0
+        radius_degrees = radius_meters / 111139.0
 
-        car_footprint_polygon = Point(gps_point).buffer(radius_meters)
+        car_footprint_polygon = Point(gps_point).buffer(radius_degrees)
 
         self.gps_bbox.append(car_footprint_polygon)
         self.frame_idx.append(frame_idx)
