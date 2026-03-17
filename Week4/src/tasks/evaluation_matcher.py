@@ -57,6 +57,9 @@ def load_sequence_metadata(dataset_root: str, seq: str):
         video_paths.append(str(cam_dir / "vdo.avi"))
         # GT is grouped by local frame so later we can ask "which cars are visible now?"
         gt_by_camera.append(load_gt_detections(cam_dir / "gt" / "gt.txt"))
+        roi_mask = cv2.imread(str(cam_dir / "roi.jpg"), cv2.IMREAD_GRAYSCALE)
+        if roi_mask is None:
+            raise FileNotFoundError(f"ROI mask not found for camera {cam_dir.name}: {cam_dir / 'roi.jpg'}")
 
         # Calibration is needed to project detections into GPS space and reason
         # about overlapping/adjacent cameras, exactly like in the matching task.
@@ -82,6 +85,7 @@ def load_sequence_metadata(dataset_root: str, seq: str):
                 homography,
                 offsets[cam_dir.name],
                 num_frames[cam_dir.name],
+                roi_mask,
             )
         )
 
