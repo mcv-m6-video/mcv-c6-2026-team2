@@ -49,7 +49,7 @@ class TrackManager:
     def save(self, output_folder: str, cam_names: list[str] = None):
         os.makedirs(output_folder, exist_ok=True)
         file = os.path.join(output_folder, "pred.txt")
-        
+
         detections: list[str] = []
         for dict_cam_idx, cam_name in enumerate(cam_names):
             cam_idx = int(cam_name[1:])
@@ -59,13 +59,13 @@ class TrackManager:
                 if len(car_registry) < 2 or dict_cam_idx not in car_registry:
                     continue
 
-                for car_instance in car_registry[dict_cam_idx]:
+                for car_instance in car_registry[dict_cam_idx].values():
                     dets = car_instance.get_history()
                     for d in dets:
                         frame_idx, xleft, ytop, xright, ybottom, conf = d
                         formated_det = f"{cam_idx},{global_id},{frame_idx},{xleft},{ytop},{xright - xleft},{ybottom - ytop},-1,-1\n"
                         cam_dets.append(formated_det)
-            
+
             cam_dets.sort(key=lambda x: int(x.split(",")[1]))
             detections.extend(cam_dets)
 
