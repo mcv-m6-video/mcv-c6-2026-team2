@@ -27,18 +27,16 @@ def args_parser():
     eval_subparser.add_argument("--seq", type=str, default="S03")
     eval_subparser.add_argument(
         "--eval_output_dir", type=str, default="eval_output")
-    eval_subparser.add_argument("--threshold_start", type=float, default=0.60)
-    eval_subparser.add_argument("--threshold_end", type=float, default=0.90)
-    eval_subparser.add_argument("--threshold_step", type=float, default=0.05)
-    eval_subparser.add_argument("--render_threshold", type=float, default=None)
 
     main_parser = argparse.ArgumentParser(parents=[dataset_parser])
     subparsers = main_parser.add_subparsers(required=True)
 
+    # tracking task
     tracking_subparser = subparsers.add_parser(
         "tracking", parents=[det_model_parser, of_model_parser])
     tracking_subparser.set_defaults(func=track)
 
+    # train matching task
     train_matcher_subparser = subparsers.add_parser(
         "train_matcher", parents=[match_model_parser])
     train_matcher_subparser.set_defaults(func=train_match)
@@ -48,6 +46,7 @@ def args_parser():
     matching_subparser.add_argument("--output_folder", type=str, default="results")
     matching_subparser.set_defaults(func=match)
 
+    # evaluation task
     evaluation_subparser = subparsers.add_parser(
         "evaluate", parents=[eval_subparser])
     evaluation_subparser.add_argument("--gt", required=True, type=str)
@@ -58,9 +57,18 @@ def args_parser():
     evaluation_subparser.add_argument("-m", "--mread", action="store_true")
     evaluation_subparser.set_defaults(func=evaluate)
 
-    evaluation_subparser = subparsers.add_parser(
+    # evaluation of the matcher independently using the GT
+    evaluation_matcher_subparser = subparsers.add_parser(
         "evaluate_matcher", parents=[match_model_parser, eval_subparser])
-    evaluation_subparser.set_defaults(func=evaluate_matcher)
+    evaluation_matcher_subparser.add_argument(
+        "--threshold_start", type=float, default=0.60)
+    evaluation_matcher_subparser.add_argument(
+        "--threshold_end", type=float, default=0.90)
+    evaluation_matcher_subparser.add_argument(
+        "--threshold_step", type=float, default=0.05)
+    evaluation_matcher_subparser.add_argument(
+        "--render_threshold", type=float, default=None)
+    evaluation_matcher_subparser.set_defaults(func=evaluate_matcher)
 
     args = main_parser.parse_args()
 

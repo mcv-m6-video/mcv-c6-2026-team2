@@ -6,6 +6,8 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 from src.models.matcher import get_matcher, initialize_matcher
 from src.utils.camera import Camera, compute_relationships
@@ -153,12 +155,15 @@ def annotate_frame(frame: np.ndarray, detections: list[dict], cam_idx: int, t_ma
 
 def collect_tracks_from_gt(dataset_root: str, seq: str):
     """Builds one Car instance per GT track using all detections in the sequence."""
-    cameras, gt_by_camera, video_paths, camera_names = load_sequence_metadata(dataset_root, seq)
+    cameras, gt_by_camera, video_paths, camera_names = load_sequence_metadata(
+        dataset_root, seq)
     track_manager = TrackManager()
-    local_cars_registry: dict[int, dict[int, Car]] = {i: {} for i in range(len(cameras))}
+    local_cars_registry: dict[int, dict[int, Car]] = {
+        i: {} for i in range(len(cameras))}
 
     for cam_idx, (video_path, gt_frames, camera) in enumerate(zip(video_paths, gt_by_camera, cameras)):
-        LOGGER.info("Collecting GT tracks for camera %s", camera_names[cam_idx])
+        LOGGER.info("Collecting GT tracks for camera %s",
+                    camera_names[cam_idx])
         cap = cv2.VideoCapture(video_path)
         frame_idx = 1
 
@@ -184,6 +189,7 @@ def collect_tracks_from_gt(dataset_root: str, seq: str):
                     camera.homography,
                     frame_idx,
                     cam_idx,
+                    confidence=1.0,  # GT detections have perfect confidence
                 )
                 track_manager.register_car(cam_idx, local_id, car)
 
@@ -214,17 +220,19 @@ def match_all_tracks(track_manager: TrackManager, local_cars_registry: dict[int,
         for cam_idx, cars in local_cars_registry.items()
         for local_id, car in cars.items()
     ]
-    LOGGER.info("Starting all-to-all track comparison over %d tracks", len(tracks))
+    LOGGER.info(
+        "Starting all-to-all track comparison over %d tracks", len(tracks))
 
     num_pairs = 0
     num_matches = 0
     pairwise_decisions = []
     matcher = get_matcher()
     if matcher is None:
-        raise RuntimeError("Matcher must be initialized before comparing tracks.")
+        raise RuntimeError(
+            "Matcher must be initialized before comparing tracks.")
 
     for idx, (cam_idx_a, local_id_a, car_a) in enumerate(tracks):
-        for cam_idx_b, local_id_b, car_b in tracks[idx + 1 :]:
+        for cam_idx_b, local_id_b, car_b in tracks[idx + 1:]:
             if cam_idx_a == cam_idx_b:
                 continue
 
@@ -246,7 +254,8 @@ def match_all_tracks(track_manager: TrackManager, local_cars_registry: dict[int,
             )
 
             if pred_same:
-                track_manager.link_cars(cam_idx_a, local_id_a, cam_idx_b, local_id_b)
+                track_manager.link_cars(
+                    cam_idx_a, local_id_a, cam_idx_b, local_id_b)
                 num_matches += 1
 
         if (idx + 1) % 25 == 0 or idx == len(tracks) - 1:
@@ -258,7 +267,8 @@ def match_all_tracks(track_manager: TrackManager, local_cars_registry: dict[int,
                 num_matches,
             )
 
-    LOGGER.info("Finished all-to-all matching | checked_pairs=%d | accepted_matches=%d", num_pairs, num_matches)
+    LOGGER.info("Finished all-to-all matching | checked_pairs=%d | accepted_matches=%d",
+                num_pairs, num_matches)
     return pairwise_decisions
 
 
@@ -271,7 +281,8 @@ def compute_binary_metrics(tp: int, fp: int, fn: int, tn: int) -> dict:
         if (precision + recall) > 0
         else 0.0
     )
-    accuracy = (tp + tn) / (tp + fp + fn + tn) if (tp + fp + fn + tn) > 0 else 0.0
+    accuracy = (tp + tn) / (tp + fp + fn +
+                            tn) if (tp + fp + fn + tn) > 0 else 0.0
     return {
         "true_positive": tp,
         "false_positive": fp,
@@ -305,7 +316,8 @@ def compute_random_baseline_metrics(
             **compute_binary_metrics(0, 0, 0, 0),
         }
 
-    num_positive = sum(1 for decision in pairwise_decisions if decision["true_same"])
+    num_positive = sum(
+        1 for decision in pairwise_decisions if decision["true_same"])
     num_negative = num_pairs - num_positive
 
     tp = predict_same_probability * num_positive
@@ -450,16 +462,17 @@ def build_thresholds(start: float, end: float, step: float) -> list[float]:
     return thresholds
 
 
-def plot_precision_recall_curve(metrics_by_threshold: list[dict], output_path: Path) -> None:
+def plot_precision_recall_curve(
+    metrics_by_threshold: list[dict],
+    pairwise_decisions: list[dict],
+    output_path: Path,
+) -> None:
     """Plots a precision-recall curve from threshold sweep results."""
-    try:
-        import matplotlib.pyplot as plt
-    except ImportError:
-        LOGGER.warning("matplotlib is not available; skipping precision-recall plot.")
-        return
 
-    recalls = [m["pairwise_decision_metrics"]["recall"] for m in metrics_by_threshold]
-    precisions = [m["pairwise_decision_metrics"]["precision"] for m in metrics_by_threshold]
+    recalls = [m["pairwise_decision_metrics"]["recall"]
+               for m in metrics_by_threshold]
+    precisions = [m["pairwise_decision_metrics"]["precision"]
+                  for m in metrics_by_threshold]
     thresholds = [m["threshold"] for m in metrics_by_threshold]
     fair_coin = metrics_by_threshold[0]["random_baselines"]["fair_coin"] if metrics_by_threshold else None
     prevalence_matched = (
@@ -467,19 +480,55 @@ def plot_precision_recall_curve(metrics_by_threshold: list[dict], output_path: P
         if metrics_by_threshold
         else None
     )
+    random_sweep = []
+    if pairwise_decisions:
+        for prob in np.arange(0.0, 1.0001, 0.1):
+            random_sweep.append(
+                compute_random_baseline_metrics(
+                    pairwise_decisions, float(round(prob, 2)))
+            )
 
-    plt.figure(figsize=(7, 5))
-    plt.plot(recalls, precisions, marker="o", label="Matcher sweep")
-    for recall, precision, threshold in zip(recalls, precisions, thresholds):
-        plt.annotate(f"{threshold:.2f}", (recall, precision), fontsize=8)
+    plt.figure(figsize=(9, 7))
 
+    # --- Main curve ---
+    sns.lineplot(x=recalls, y=precisions, marker="o", label="Matcher sweep")
+
+    # Annotate thresholds
+    for r, p, t in zip(recalls, precisions, thresholds):
+        plt.text(r, p, f"{t:.2f}", fontsize=12, ha="left", va="bottom")
+
+    # --- Random sweep (if exists) ---
+    if random_sweep:
+        random_recalls = [m["recall"] for m in random_sweep]
+        random_precisions = [m["precision"] for m in random_sweep]
+
+        sns.lineplot(
+            x=random_recalls,
+            y=random_precisions,
+            linestyle="--",
+            color="gray",
+            alpha=0.7,
+            label="Random baseline sweep",
+        )
+
+        for m in random_sweep:
+            plt.text(
+                m["recall"],
+                m["precision"],
+                f"{m['predict_same_probability']:.1f}",
+                fontsize=12,
+                color="gray",
+            )
+
+    # --- Baseline points ---
     if fair_coin is not None:
         plt.scatter(
             fair_coin["recall"],
             fair_coin["precision"],
-            marker="x",
-            s=90,
-            label="Random baseline: fair coin",
+            marker="X",
+            s=100,
+            label="Random baseline: fair coin (50%)",
+            color="purple",
         )
 
     if prevalence_matched is not None:
@@ -487,17 +536,32 @@ def plot_precision_recall_curve(metrics_by_threshold: list[dict], output_path: P
             prevalence_matched["recall"],
             prevalence_matched["precision"],
             marker="^",
-            s=90,
-            label="Random baseline: prevalence-matched",
+            s=100,
+            label="Random baseline:\nprevalence-matched (5.6%)",
+            color="orange",
         )
 
+    # --- Axis limits ---
+    plt.xlim(0, 1.05)
+    plt.ylim(0, 1)
+
+    # --- Custom grid every 0.1 ---
+    ticks = np.arange(0, 1.01, 0.1)
+    plt.xticks(ticks)
+    plt.yticks(ticks)
+
+    plt.grid(True, which="both", linestyle="--", linewidth=0.5, alpha=0.6)
+
+    # --- Labels ---
     plt.xlabel("Recall")
     plt.ylabel("Precision")
     plt.title("Matcher Pairwise Precision-Recall Curve")
-    plt.grid(True, alpha=0.3)
+
     plt.legend(
-        title="Point labels show threshold values",
+        title="Matcher labels are thresholds;\ngray labels are random positive rates",
         loc="best",
+        title_fontsize="13",
+        fontsize="13",
     )
     plt.tight_layout()
     plt.savefig(output_path)
@@ -689,7 +753,8 @@ def main(args):
         "best_threshold_by_pairwise_f1": best_metrics,
     }
 
-    render_threshold = args.render_threshold if args.render_threshold is not None else best_metrics["threshold"]
+    render_threshold = args.render_threshold if args.render_threshold is not None else best_metrics[
+        "threshold"]
     LOGGER.info("Rendering videos with threshold %.3f", render_threshold)
     render_track_manager = build_track_manager_for_threshold(
         local_cars_registry,
@@ -707,7 +772,8 @@ def main(args):
     )
     metrics_path = Path(output_dir) / f"{seq}_metrics.json"
     assignments_path = Path(output_dir) / f"{seq}_assignments.json"
-    pairwise_decisions_path = Path(output_dir) / f"{seq}_pairwise_decisions.json"
+    pairwise_decisions_path = Path(
+        output_dir) / f"{seq}_pairwise_decisions.json"
     pr_curve_path = Path(output_dir) / f"{seq}_precision_recall_curve.png"
 
     with open(metrics_path, "w") as f:
@@ -725,7 +791,8 @@ def main(args):
     with open(pairwise_decisions_path, "w") as f:
         json.dump(pairwise_decisions, f, indent=2)
     LOGGER.info("Saved pairwise decisions to %s", pairwise_decisions_path)
-    plot_precision_recall_curve(metrics_by_threshold, pr_curve_path)
+    plot_precision_recall_curve(
+        metrics_by_threshold, pairwise_decisions, pr_curve_path)
 
     print(f"Saved annotated videos and metrics to {output_dir}")
     print(json.dumps(summary_metrics, indent=2))
