@@ -266,10 +266,10 @@ def eval(test, pred, **kwargs):
             bool
                 Return True if image is an outlier.
             """
-            xmin = row['X']
-            ymin = row['Y']
-            xmax = row['X'] + row['Width']
-            ymax = row['Y'] + row['Height']
+            xmin = int(row['X'])
+            ymin = int(row['Y'])
+            xmax = int(np.ceil(row['X'] + row['Width']))
+            ymax = int(np.ceil(row['Y'] + row['Height']))
 
             if xmin >= 0 and xmin < width:
                 if ymin >= 0 and ymin < height and roi[ymin, xmin] < 255:

@@ -44,22 +44,28 @@ def args_parser():
     # train matching task
     train_matcher_subparser = subparsers.add_parser(
         "train_matcher", parents=[match_model_parser])
+    
     train_matcher_subparser.set_defaults(func=train_match)
 
-    matching_subparser = subparsers.add_parser("matching", parents=[match_model_parser])
+    # matching task
+    matching_subparser = subparsers.add_parser(
+        "matching", parents=[match_model_parser])
     matching_subparser.add_argument(
         "--match_threshold",
         type=float,
         default=DEFAULT_SIMILARITY_THRESHOLD,
     )
-    matching_subparser.add_argument("--tracking_file", type=str, default="mtsc/mtsc_deepsort_mask_rcnn.txt")
-    matching_subparser.add_argument("--output_folder", type=str, default="results")
+    matching_subparser.add_argument(
+        "--tracking_file", type=str, default="mtsc/mtsc_deepsort_mask_rcnn.txt")
+    matching_subparser.add_argument(
+        "--output_folder", type=str, default="results")
     matching_subparser.set_defaults(func=match)
 
     # evaluation task
     evaluation_subparser = subparsers.add_parser(
         "evaluate", parents=[eval_subparser])
-    evaluation_subparser.add_argument("--gt", required=True, type=str)
+    evaluation_subparser.add_argument(
+        "--gt", type=str, default="data/gt/gt_S03.txt")
     evaluation_subparser.add_argument("--pred", required=True, type=str)
     evaluation_subparser.add_argument("--dstype", type=str, default="train")
     evaluation_subparser.add_argument(
