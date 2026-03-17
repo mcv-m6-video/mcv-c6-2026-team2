@@ -52,7 +52,7 @@ class TrackManager:
 
         detections: list[str] = []
         for dict_cam_idx, cam_name in enumerate(cam_names):
-            cam_idx = int(cam_name[1:])
+            cam_idx = int(cam_name[1:]) - 1
 
             cam_dets: list[str] = []
             for global_id, car_registry in self.global_tracks.items():

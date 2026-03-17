@@ -44,7 +44,7 @@ def evaluate_car_state(
         return {
             "action": "OVERLAP",
             "target_cameras": valid_overlap_cams,
-            "life_frames": 3,
+            "life_frames": 10,
         }
 
     # Testing if going to adjacent cameras
@@ -62,7 +62,7 @@ def evaluate_car_state(
         return {
             "action": "ADJACENCY",
             "target_cameras": list(curr_cam.adjacent_cameras),
-            "life_frames": 30,
+            "life_frames": 100,
         }
 
     # Car won't appear in other cameras
@@ -76,6 +76,7 @@ def evaluate_car_state(
 def main(args):
     # Extract arguments
     dataset_root = args.dataset_root
+    detections_root = args.detections_root
     seq = args.seq
 
     match_checkpoint = args.match_checkpoint
@@ -87,7 +88,7 @@ def main(args):
     initialize_matcher(match_checkpoint, similarity_threshold=match_threshold)
 
     # Create dataset
-    dataset = MOMCDataset(dataset_root, seq, tracking_file)
+    dataset = MOMCDataset(dataset_root, detections_root, seq, tracking_file)
 
     # Initialize TrackingManager
     t_manager = TrackManager()
@@ -192,6 +193,14 @@ def main(args):
                 cams_to_remove_from_targets: list[Camera] = []
 
                 for target_cam in queue_info["targets"]:
+                    global_id_source: int = t_manager.local_to_global[
+                            (source_cam_idx, source_car_id)
+                        ]
+                    
+                    if target_cam.camera_idx in t_manager.global_tracks[global_id_source]:
+                        cams_to_remove_from_targets.append(target_cam)
+                        continue
+
                     target_active_cars: list[Car] = active_cars_current_frame[
                         target_cam.camera_idx
                     ]
@@ -219,20 +228,19 @@ def main(args):
 
                     candidate_cars.sort(key=lambda x: x[0])
 
-                    if len(candidate_cars) > 0:
-                        tqdm.write(
-                            f"[Frame {frame_idx}] Cam {source_cam_idx} Car {source_car_id} found {len(candidate_cars)} close candidates in Cam {target_cam.camera_idx}:"
-                        )
-                        for d, t_car in candidate_cars:
-                            tqdm.write(
-                                f"   -> Target Car {t_car.car_id} at distance {d:.2f} units"
-                            )
+                    # if len(candidate_cars) > 0:
+                    #     tqdm.write(
+                    #         f"[Frame {frame_idx}] Cam {source_cam_idx} Car {source_car_id} found {len(candidate_cars)} close candidates in Cam {target_cam.camera_idx}:"
+                    #     )
+                    #     for d, t_car in candidate_cars:
+                    #         tqdm.write(
+                    #             f"   -> Target Car {t_car.car_id} at distance {d:.2f} units"
+                    #         )
+
+
                     matched = False
 
                     for dist, target_car in candidate_cars:
-                        global_id_source: int = t_manager.local_to_global[
-                            (source_cam_idx, source_car_id)
-                        ]
                         global_id_target: int = t_manager.local_to_global[
                             (target_cam.camera_idx, target_car.car_id)
                         ]
@@ -241,7 +249,17 @@ def main(args):
                             # Already matched
                             matched = True
                             break
+                        
+                        if source_cam_idx in t_manager.global_tracks[global_id_target]:
+                            # Target already matched
+                            continue
+
                         if source_car == target_car:
+                            tqdm.write(
+                                f"[Frame {frame_idx}] NEW MATCH: Cam {source_cam_idx} Car {source_car_id} "
+                                f"merged with Cam {target_cam.camera_idx} Car {target_car.car_id} "
+                                f"(Dist: {dist:.1f}m)"
+                            )
                             t_manager.link_cars(
                                 source_cam_idx,
                                 source_car_id,

@@ -10,6 +10,7 @@ def args_parser():
 
     dataset_parser.add_argument(
         "--dataset_root", type=str, default="datasets/AI_CITY_CHALLENGE_2022_TRAIN")
+    dataset_parser.add_argument("--detections_root", type=str, default="data")
     dataset_parser.add_argument("--seq", type=str, default="S01")
 
     det_model_parser = argparse.ArgumentParser(add_help=False)

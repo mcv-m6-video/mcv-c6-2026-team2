@@ -7,9 +7,13 @@ from tqdm import tqdm
 
 
 class MOMCDataset:
-    def __init__(self, root: str, seq: str, tracking_file: str):
+    def __init__(
+        self, dataset_root: str, predictions_root: str, seq: str, tracking_file: str
+    ):
         # Declare attributes (and Initialize if possible)
-        self.data = self.__get_videos(root, seq, tracking_file)
+        self.data = self.__get_videos(
+            dataset_root, predictions_root, seq, tracking_file
+        )
         self.start_videos()
 
     def __getitem__(self, index: tuple[int, int]):
@@ -33,7 +37,9 @@ class MOMCDataset:
 
         return frame, dets
 
-    def __get_videos(self, root: str, seq: str, tracking_file: str):
+    def __get_videos(
+        self, dataset_root: str, predictions_root: str, seq: str, tracking_file: str
+    ):
         print("Fetching videos and groundtruth...")
         data = {
             "videos": [],
@@ -43,20 +49,23 @@ class MOMCDataset:
             "homographies": [],
             "num_frames": [],
             "offsets": [],
-            "cam_name": []
+            "cam_name": [],
         }
-        sequence_folder = os.path.join(root, "train", seq)
-        for subfolder in tqdm(sorted(glob.glob(os.path.join(sequence_folder, "*")))):
-            data["videos"].append(os.path.join(subfolder, "vdo.avi"))
-            data["rois"].append(os.path.join(subfolder, "roi.jpg"))
-            data["cam_name"].append(os.path.basename(subfolder))
+        dataset_sequence_folder = os.path.join(dataset_root, "train", seq)
+        predictions_sequence_folder = os.path.join(predictions_root, seq)
+        combined_subfolders = zip(
+            sorted(glob.glob(os.path.join(dataset_sequence_folder, "*"))),
+            sorted(glob.glob(os.path.join(predictions_sequence_folder, "*"))),
+        )
+        for dataset_subfolder, prediction_subfolder in tqdm(combined_subfolders):
+            data["videos"].append(os.path.join(dataset_subfolder, "vdo.avi"))
+            data["rois"].append(os.path.join(dataset_subfolder, "roi.jpg"))
+            data["cam_name"].append(os.path.basename(dataset_subfolder))
 
-            detections = self.__load_detections(
-                os.path.join(subfolder, tracking_file)
-            )
+            detections = self.__load_detections(os.path.join(prediction_subfolder, tracking_file))
             data["dets"].append(detections)
 
-            with open(os.path.join(subfolder, "calibration.txt"), "r") as f:
+            with open(os.path.join(dataset_subfolder, "calibration.txt"), "r") as f:
                 homography_str = f.readline().strip().split(" ")[2:]
                 homography_matrix = [[]]
                 for element in homography_str:
@@ -67,14 +76,14 @@ class MOMCDataset:
                 homography = np.array(homography_matrix, dtype=np.float32)
                 data["homographies"].append(homography)
 
-        cam_framenum_file = os.path.join(root, "cam_framenum", seq + ".txt")
+        cam_framenum_file = os.path.join(dataset_root, "cam_framenum", seq + ".txt")
         with open(cam_framenum_file, "r") as f:
             for line in f.readlines():
                 line = line.strip()
                 num_frames = int(line.split(" ")[1])
                 data["num_frames"].append(num_frames)
 
-        cam_offset_file = os.path.join(root, "cam_timestamp", seq + ".txt")
+        cam_offset_file = os.path.join(dataset_root, "cam_timestamp", seq + ".txt")
         with open(cam_offset_file, "r") as f:
             for line in f.readlines():
                 line = line.strip()
@@ -126,6 +135,6 @@ class MOMCDataset:
         frame_idx = np.argmax(self.data["num_frames"])
         max_frames = self.data["num_frames"][frame_idx]
         return max_frames
-    
+
     def get_cam_names(self):
         return self.data["cam_name"]

@@ -12,7 +12,7 @@ from src.utils.reid_training_utils import ReIDNet, build_transforms
 
 
 LOGGER = logging.getLogger(__name__)
-DEFAULT_SIMILARITY_THRESHOLD = 0.65
+DEFAULT_SIMILARITY_THRESHOLD = 0.85
 _MATCHER = None
 
 
