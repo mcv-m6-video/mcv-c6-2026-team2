@@ -13,8 +13,8 @@ def args_parser():
     det_model_parser = argparse.ArgumentParser(add_help=False)
     det_model_parser.add_argument("--det_checkpoint", type=str, default="checkpoints/fasterrcnn_faster-rcnn_best.pth")
 
-    of_model_parser = argparse.ArgumentParser(add_help=False)
-    of_model_parser.add_argument("--of_checkpoint", type=str, default="egorchistov/optical-flow-MEMFOF-Tartan-T-TSKH")
+    # of_model_parser = argparse.ArgumentParser(add_help=False)
+    # of_model_parser.add_argument("--of_checkpoint", type=str, default="egorchistov/optical-flow-MEMFOF-Tartan-T-TSKH")
 
     match_model_parser = argparse.ArgumentParser(add_help=False)
     match_model_parser.add_argument("--match_checkpoint", type=str, default="checkpoints/best_matcher.pt")
@@ -22,7 +22,12 @@ def args_parser():
     main_parser = argparse.ArgumentParser(parents=[dataset_parser])
     subparsers = main_parser.add_subparsers(required=True)
 
-    tracking_subparser = subparsers.add_parser("tracking", parents=[det_model_parser, of_model_parser])
+    tracking_subparser = subparsers.add_parser("tracking", parents=[det_model_parser]) #, of_model_parser])
+    tracking_subparser.add_argument("--iou_threshold", type=float, default=0.4)
+    tracking_subparser.add_argument("--dup_iou_threshold", type=float, default=0.5)
+    tracking_subparser.add_argument("--max_age", type=int, default=10)
+    tracking_subparser.add_argument("--conf_threshold", type=float, default=0.6)
+    tracking_subparser.add_argument("--output_path", type=str, default="data")
     tracking_subparser.set_defaults(func=track)
 
     train_matcher_subparser = subparsers.add_parser("train_matcher", parents=[match_model_parser])
