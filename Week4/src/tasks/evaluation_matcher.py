@@ -219,14 +219,19 @@ def match_all_tracks(track_manager: TrackManager, local_cars_registry: dict[int,
     num_pairs = 0
     num_matches = 0
     pairwise_decisions = []
+    matcher = get_matcher()
+    if matcher is None:
+        raise RuntimeError("Matcher must be initialized before comparing tracks.")
+
     for idx, (cam_idx_a, local_id_a, car_a) in enumerate(tracks):
         for cam_idx_b, local_id_b, car_b in tracks[idx + 1 :]:
             if cam_idx_a == cam_idx_b:
                 continue
 
             num_pairs += 1
-            pred_same = (car_a == car_b)
             true_same = local_id_a == local_id_b
+            similarity = matcher.similarity(car_a.embeddings, car_b.embeddings)
+            pred_same = similarity >= matcher.similarity_threshold
 
             pairwise_decisions.append(
                 {
@@ -235,6 +240,7 @@ def match_all_tracks(track_manager: TrackManager, local_cars_registry: dict[int,
                     "cam_idx_b": cam_idx_b,
                     "local_id_b": local_id_b,
                     "true_same": true_same,
+                    "similarity": similarity,
                     "pred_same": pred_same,
                 }
             )
@@ -278,6 +284,48 @@ def compute_binary_metrics(tp: int, fp: int, fn: int, tn: int) -> dict:
     }
 
 
+def compute_random_baseline_metrics(
+    pairwise_decisions: list[dict],
+    predict_same_probability: float,
+) -> dict:
+    """Computes the expected metrics of a random matcher.
+
+    Args:
+        pairwise_decisions: Ground-truth pair annotations.
+        predict_same_probability: Probability of predicting "same".
+
+    Returns:
+        Expected confusion counts and metrics for the random baseline.
+    """
+    num_pairs = len(pairwise_decisions)
+    if num_pairs == 0:
+        return {
+            "predict_same_probability": predict_same_probability,
+            "num_compared_pairs": 0,
+            **compute_binary_metrics(0, 0, 0, 0),
+        }
+
+    num_positive = sum(1 for decision in pairwise_decisions if decision["true_same"])
+    num_negative = num_pairs - num_positive
+
+    tp = predict_same_probability * num_positive
+    fn = (1.0 - predict_same_probability) * num_positive
+    fp = predict_same_probability * num_negative
+    tn = (1.0 - predict_same_probability) * num_negative
+
+    metrics = compute_binary_metrics(tp, fp, fn, tn)
+    metrics["predict_same_probability"] = predict_same_probability
+    metrics["num_compared_pairs"] = num_pairs
+    return metrics
+
+
+def compute_pair_prevalence(pairwise_decisions: list[dict]) -> float:
+    """Computes the fraction of positive pairs in the evaluated set."""
+    if not pairwise_decisions:
+        return 0.0
+    return sum(1 for decision in pairwise_decisions if decision["true_same"]) / len(pairwise_decisions)
+
+
 def compute_pairwise_decision_metrics(pairwise_decisions: list[dict]) -> dict:
     """Scores the raw one-to-one matcher decisions before any transitive merging."""
     tp = fp = fn = tn = 0
@@ -296,6 +344,25 @@ def compute_pairwise_decision_metrics(pairwise_decisions: list[dict]) -> dict:
 
     metrics = compute_binary_metrics(tp, fp, fn, tn)
     metrics["num_compared_pairs"] = len(pairwise_decisions)
+    return metrics
+
+
+def compute_pairwise_decision_metrics_at_threshold(
+    pairwise_decisions: list[dict],
+    threshold: float,
+) -> dict:
+    """Scores raw matcher decisions after thresholding similarities."""
+    thresholded = []
+    for decision in pairwise_decisions:
+        thresholded.append(
+            {
+                **decision,
+                "pred_same": decision["similarity"] >= threshold,
+            }
+        )
+
+    metrics = compute_pairwise_decision_metrics(thresholded)
+    metrics["threshold"] = threshold
     return metrics
 
 
@@ -337,6 +404,76 @@ def compute_pairwise_metrics(track_manager: TrackManager):
     }
     metrics.update(compute_binary_metrics(tp, fp, fn, tn))
     return metrics
+
+
+def build_track_manager_for_threshold(
+    local_cars_registry: dict[int, dict[int, Car]],
+    pairwise_decisions: list[dict],
+    threshold: float,
+) -> TrackManager:
+    """Builds final global assignments by merging all pairs above a threshold."""
+    track_manager = TrackManager()
+    for cam_idx, cars in local_cars_registry.items():
+        for local_id, car in cars.items():
+            track_manager.register_car(cam_idx, local_id, car)
+
+    accepted_matches = 0
+    for decision in pairwise_decisions:
+        if decision["similarity"] < threshold:
+            continue
+
+        track_manager.link_cars(
+            decision["cam_idx_a"],
+            decision["local_id_a"],
+            decision["cam_idx_b"],
+            decision["local_id_b"],
+        )
+        accepted_matches += 1
+
+    LOGGER.info(
+        "Applied threshold %.3f | accepted pairwise matches=%d",
+        threshold,
+        accepted_matches,
+    )
+    return track_manager
+
+
+def build_thresholds(start: float, end: float, step: float) -> list[float]:
+    """Builds an inclusive list of thresholds."""
+    if step <= 0:
+        raise ValueError("threshold_step must be > 0")
+    thresholds = []
+    current = start
+    while current <= end + 1e-9:
+        thresholds.append(round(current, 6))
+        current += step
+    return thresholds
+
+
+def plot_precision_recall_curve(metrics_by_threshold: list[dict], output_path: Path) -> None:
+    """Plots a precision-recall curve from threshold sweep results."""
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        LOGGER.warning("matplotlib is not available; skipping precision-recall plot.")
+        return
+
+    recalls = [m["pairwise_decision_metrics"]["recall"] for m in metrics_by_threshold]
+    precisions = [m["pairwise_decision_metrics"]["precision"] for m in metrics_by_threshold]
+    thresholds = [m["threshold"] for m in metrics_by_threshold]
+
+    plt.figure(figsize=(7, 5))
+    plt.plot(recalls, precisions, marker="o")
+    for recall, precision, threshold in zip(recalls, precisions, thresholds):
+        plt.annotate(f"{threshold:.2f}", (recall, precision), fontsize=8)
+    plt.xlabel("Recall")
+    plt.ylabel("Precision")
+    plt.title("Matcher Pairwise Precision-Recall Curve")
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(output_path)
+    plt.close()
+    LOGGER.info("Saved precision-recall curve to %s", output_path)
 
 
 def render_annotated_videos(
@@ -420,10 +557,16 @@ def run_matcher_on_gt(dataset_root: str, seq: str):
 
     # After all local tracks are built, compare each one against all the others.
     pairwise_decisions = match_all_tracks(track_manager, local_cars_registry)
+    positive_prevalence = compute_pair_prevalence(pairwise_decisions)
 
     decision_metrics = compute_pairwise_decision_metrics(pairwise_decisions)
     clustering_metrics = compute_pairwise_metrics(track_manager)
     metrics = {
+        "pairwise_positive_prevalence": positive_prevalence,
+        "random_baselines": {
+            "fair_coin": compute_random_baseline_metrics(pairwise_decisions, 0.5),
+            "prevalence_matched": compute_random_baseline_metrics(pairwise_decisions, positive_prevalence),
+        },
         "pairwise_decision_metrics": decision_metrics,
         "final_clustering_metrics": clustering_metrics,
     }
@@ -433,6 +576,7 @@ def run_matcher_on_gt(dataset_root: str, seq: str):
     return (
         metrics,
         pairwise_decisions,
+        local_cars_registry,
         track_manager.local_to_global,
         gt_by_camera,
         video_paths,
@@ -447,12 +591,18 @@ def main(args):
     match_checkpoint = args.match_checkpoint
     output_dir = getattr(args, "eval_output_dir",
                          os.path.join("outputs", "matcher_eval", seq))
+    thresholds = build_thresholds(
+        args.threshold_start,
+        args.threshold_end,
+        args.threshold_step,
+    )
     LOGGER.info(
-        "Evaluation config | dataset_root=%s | seq=%s | checkpoint=%s | output_dir=%s",
+        "Evaluation config | dataset_root=%s | seq=%s | checkpoint=%s | output_dir=%s | thresholds=%s",
         dataset_root,
         seq,
         match_checkpoint,
         output_dir,
+        thresholds,
     )
 
     initialize_matcher(match_checkpoint)
@@ -460,32 +610,84 @@ def main(args):
         raise RuntimeError("Matcher could not be initialized for evaluation.")
     LOGGER.info("Matcher initialized successfully")
 
-    # First pass: infer cross-camera assignments from GT detections only.
-    metrics, pairwise_decisions, assignments, gt_by_camera, video_paths, camera_names = run_matcher_on_gt(
+    # First pass: collect tracks and similarity scores once.
+    default_metrics, pairwise_decisions, local_cars_registry, assignments, gt_by_camera, video_paths, camera_names = run_matcher_on_gt(
         dataset_root, seq
     )
 
     os.makedirs(output_dir, exist_ok=True)
-    # Second pass: render the videos using the final predicted assignments.
+    metrics_by_threshold = []
+    best_metrics = None
+    best_assignments = assignments
+
+    for threshold in thresholds:
+        pairwise_metrics = compute_pairwise_decision_metrics_at_threshold(
+            pairwise_decisions, threshold
+        )
+        threshold_track_manager = build_track_manager_for_threshold(
+            local_cars_registry,
+            pairwise_decisions,
+            threshold,
+        )
+        clustering_metrics = compute_pairwise_metrics(threshold_track_manager)
+        threshold_metrics = {
+            "threshold": threshold,
+            "pairwise_positive_prevalence": compute_pair_prevalence(pairwise_decisions),
+            "random_baselines": {
+                "fair_coin": compute_random_baseline_metrics(pairwise_decisions, 0.5),
+                "prevalence_matched": compute_random_baseline_metrics(
+                    pairwise_decisions,
+                    compute_pair_prevalence(pairwise_decisions),
+                ),
+            },
+            "pairwise_decision_metrics": pairwise_metrics,
+            "final_clustering_metrics": clustering_metrics,
+            "beats_fair_coin_f1": pairwise_metrics["f1"] > compute_random_baseline_metrics(pairwise_decisions, 0.5)["f1"],
+            "beats_prevalence_matched_f1": pairwise_metrics["f1"] > compute_random_baseline_metrics(
+                pairwise_decisions,
+                compute_pair_prevalence(pairwise_decisions),
+            )["f1"],
+        }
+        metrics_by_threshold.append(threshold_metrics)
+
+        if best_metrics is None or pairwise_metrics["f1"] > best_metrics["pairwise_decision_metrics"]["f1"]:
+            best_metrics = threshold_metrics
+            best_assignments = threshold_track_manager.local_to_global.copy()
+
+    summary_metrics = {
+        "default_matcher_threshold_metrics": default_metrics,
+        "threshold_sweep": metrics_by_threshold,
+        "best_threshold_by_pairwise_f1": best_metrics,
+    }
+
+    render_threshold = args.render_threshold if args.render_threshold is not None else best_metrics["threshold"]
+    LOGGER.info("Rendering videos with threshold %.3f", render_threshold)
+    render_track_manager = build_track_manager_for_threshold(
+        local_cars_registry,
+        pairwise_decisions,
+        render_threshold,
+    )
+    # Second pass: render the videos using the chosen predicted assignments.
     render_annotated_videos(
         output_dir=output_dir,
         seq=seq,
         video_paths=video_paths,
         gt_by_camera=gt_by_camera,
         camera_names=camera_names,
-        assignments=assignments,
+        assignments=render_track_manager.local_to_global,
     )
     metrics_path = Path(output_dir) / f"{seq}_metrics.json"
     assignments_path = Path(output_dir) / f"{seq}_assignments.json"
     pairwise_decisions_path = Path(output_dir) / f"{seq}_pairwise_decisions.json"
+    pr_curve_path = Path(output_dir) / f"{seq}_precision_recall_curve.png"
 
     with open(metrics_path, "w") as f:
-        json.dump(metrics, f, indent=2)
+        json.dump(summary_metrics, f, indent=2)
     LOGGER.info("Saved metrics to %s", metrics_path)
 
     serializable_assignments = {
         f"{cam_idx}:{local_id}": global_id
-        for (cam_idx, local_id), global_id in assignments.items()
+        for (cam_idx, local_id), global_id in render_track_manager.local_to_global.items()
     }
     with open(assignments_path, "w") as f:
         json.dump(serializable_assignments, f, indent=2)
@@ -494,6 +696,7 @@ def main(args):
     with open(pairwise_decisions_path, "w") as f:
         json.dump(pairwise_decisions, f, indent=2)
     LOGGER.info("Saved pairwise decisions to %s", pairwise_decisions_path)
+    plot_precision_recall_curve(metrics_by_threshold, pr_curve_path)
 
     print(f"Saved annotated videos and metrics to {output_dir}")
-    print(json.dumps(metrics, indent=2))
+    print(json.dumps(summary_metrics, indent=2))

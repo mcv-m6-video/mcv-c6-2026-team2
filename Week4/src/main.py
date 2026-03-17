@@ -27,6 +27,10 @@ def args_parser():
     eval_subparser.add_argument("--seq", type=str, default="S03")
     eval_subparser.add_argument(
         "--eval_output_dir", type=str, default="eval_output")
+    eval_subparser.add_argument("--threshold_start", type=float, default=0.60)
+    eval_subparser.add_argument("--threshold_end", type=float, default=0.90)
+    eval_subparser.add_argument("--threshold_step", type=float, default=0.05)
+    eval_subparser.add_argument("--render_threshold", type=float, default=None)
 
     main_parser = argparse.ArgumentParser(parents=[dataset_parser])
     subparsers = main_parser.add_subparsers(required=True)
