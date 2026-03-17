@@ -176,7 +176,7 @@ def main(args):
                     }
 
         # Look for matching cars
-        for queue in [overlap_queue, adjacency_queue]:
+        for qtype, queue in [("OVERLAP", overlap_queue), ("ADJACENCY", adjacency_queue)]:
             keys_to_remove: list[tuple[int, int]] = []
 
             for key, queue_info in queue.items():
@@ -191,7 +191,11 @@ def main(args):
                         target_cam.camera_idx
                     ]
                     candidate_cars: list[tuple[float, Car]] = []
-                    max_search_radius_meters = 15.0
+
+                    if qtype == "OVERLAP":
+                        max_search_radius_meters = 15.0
+                    else:
+                        max_search_radius_meters = float('inf')
 
                     lon1, lat1 = source_centroid.x, source_centroid.y
 
