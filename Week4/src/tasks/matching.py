@@ -86,13 +86,13 @@ def main(args):
     # Initialize CameraManager
     cam_list: list[Camera] = [
         Camera(idx, resolution, homography, offset, num_frames)
-        for idx, (homography, offset, num_frames, resolution) in enumerate(
+        for idx, (homography, num_frames, offset, resolution) in enumerate(
             dataset.get_all_cameras()
         )
     ]
     cam_list = compute_relationships(cam_list)
 
-    frame_idx = 0
+    frame_idx = 1
 
     local_cars_registry: dict[int, dict[int, Car]] = {
         i: {} for i in range(len(cam_list))
@@ -117,7 +117,7 @@ def main(args):
 
             for d in dets:
                 f_idx, car_id, xleft, ytop, xright, ybottom, confidence, _, _, _ = (
-                    d.split()
+                    d.split(",")
                 )
 
                 car_id = int(car_id)
@@ -172,6 +172,7 @@ def main(args):
             for key, queue_info in queue.items():
                 source_cam_idx, source_car_id = key
                 source_car: Car = queue_info["car"]
+                source_centroid = source_car.gps_bbox[-1].centroid
 
                 cams_to_remove_from_targets: list[Camera] = []
 
@@ -179,9 +180,21 @@ def main(args):
                     target_active_cars: list[Car] = active_cars_current_frame[
                         target_cam.camera_idx
                     ]
-                    matched = False
+                    candidate_cars = []
+                    max_search_radius_meters = 8.0
 
                     for target_car in target_active_cars:
+                        target_centroid = target_car.gps_bbox[-1].centroid
+                        dist = source_centroid.distance(target_centroid)
+
+                        if dist <= max_search_radius_meters:
+                            candidate_cars.append((dist, target_car))
+
+                    candidate_cars.sort(key=lambda x: x[0])
+
+                    matched = False
+
+                    for dist, target_car in candidate_cars:
                         global_id_source: int = t_manager.local_to_global[
                             (source_cam_idx, source_car_id)
                         ]
@@ -227,4 +240,4 @@ def main(args):
         frame_idx += 1
 
     # Save detections per camera
-    t_manager.save(output_folder, len(cam_list), cam_names=dataset.get_cam_names())
+    t_manager.save(output_folder, cam_names=dataset.get_cam_names())

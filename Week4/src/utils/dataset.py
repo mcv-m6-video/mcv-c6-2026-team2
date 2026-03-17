@@ -10,6 +10,7 @@ class MOMCDataset:
     def __init__(self, root: str, seq: str):
         # Declare attributes (and Initialize if possible)
         self.data = self.__get_videos(root, seq)
+        self.start_videos()
 
     def __getitem__(self, index: tuple[int, int]):
         camera_idx, frame_idx = index
@@ -18,9 +19,9 @@ class MOMCDataset:
 
         # Indexing wrt time instant 0. Check offset
         fps = int(cap.get(cv2.CAP_PROP_FPS))
-        time_offset = self.data["offsets"][camera_idx]
+        time_offset = float(self.data["offsets"][camera_idx])
         frame_offset = time_offset * fps
-        frame_idx = frame_idx - frame_offset
+        frame_idx = int(frame_idx - frame_offset)
         if frame_idx < 0:
             return None, None
 
@@ -28,7 +29,7 @@ class MOMCDataset:
         if not ret:
             return None, None
 
-        dets = self.data["dets"][camera_idx][frame_idx]
+        dets = self.data["dets"][camera_idx].get(frame_idx, [])
 
         return frame, dets
 
@@ -83,16 +84,14 @@ class MOMCDataset:
         return data
 
     def __load_detections(self, file: str):
-        detections = []
-        prev_frame = -1
+        detections: dict[int, list[str]] = {}
         with open(file, "r") as f:
             for det in f.readlines():
                 det = det.strip()
-                frame = det.split(",")[0]
-                if frame != prev_frame:
-                    detections.append([])
-                detections[-1].append(det)
-                prev_frame = frame
+                frame = int(det.split(",")[0])
+                if frame not in detections:
+                    detections[frame] = []
+                detections[frame].append(det)
 
         return detections
 
@@ -102,7 +101,7 @@ class MOMCDataset:
 
         self.data["video_captures"] = []
 
-        for video in self.data["video"]:
+        for video in self.data["videos"]:
             cap = cv2.VideoCapture(video)
             self.data["video_captures"].append(cap)
 
@@ -123,6 +122,7 @@ class MOMCDataset:
     def get_max_frame(self):
         frame_idx = np.argmax(self.data["num_frames"])
         max_frames = self.data["num_frames"][frame_idx]
+        return max_frames
     
     def get_cam_names(self):
         return self.data["cam_name"]

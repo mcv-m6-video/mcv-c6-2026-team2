@@ -25,7 +25,7 @@ class Camera:
 
         self.gps_polygon, self.centroid = self.compute_gps_bbox(
             resolution, homography
-        )  # Bbox in GPS coordinates
+        )  # Bbox in GPS flat coordinates (meters)
         self.overlapping_cameras: list["Camera"] = []  # List of overlapping cameras
         self.adjacent_cameras: list["Camera"] = []  # List of adjacent cameras
 

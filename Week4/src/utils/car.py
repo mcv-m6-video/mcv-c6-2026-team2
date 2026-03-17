@@ -45,9 +45,8 @@ class Car:
         gps_point = cv2.perspectiveTransform(pts, homography).squeeze()
 
         radius_meters = 2.0
-        radius_degrees = radius_meters / 111139.0
 
-        car_footprint_polygon = Point(gps_point).buffer(radius_degrees)
+        car_footprint_polygon = Point(gps_point).buffer(radius_meters)
 
         self.gps_bbox.append(car_footprint_polygon)
         self.frame_idx.append(frame_idx)
@@ -56,7 +55,7 @@ class Car:
 
     def get_history(self):
         detections: list[list] = []
-        for i in len(range(self.pixel_bbox)):
+        for i in range(len(self.pixel_bbox)):
             frame_idx = self.frame_idx[i]
             xleft, ytop, xright, ybottom = self.pixel_bbox[i]
             conf = self.confidence[i]
