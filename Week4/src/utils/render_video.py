@@ -34,6 +34,60 @@ def draw_labeled_box(
     )
 
 
+def draw_dashed_line(
+    frame: np.ndarray,
+    start: tuple[int, int],
+    end: tuple[int, int],
+    color: tuple[int, int, int],
+    thickness: int = 2,
+    dash_length: int = 8,
+) -> None:
+    """Draws a dashed line segment."""
+    start_arr = np.array(start, dtype=np.float32)
+    end_arr = np.array(end, dtype=np.float32)
+    length = np.linalg.norm(end_arr - start_arr)
+    if length == 0:
+        return
+
+    direction = (end_arr - start_arr) / length
+    distance = 0.0
+    while distance < length:
+        seg_start = start_arr + direction * distance
+        seg_end = start_arr + direction * min(distance + dash_length, length)
+        cv2.line(
+            frame,
+            tuple(seg_start.astype(int)),
+            tuple(seg_end.astype(int)),
+            color,
+            thickness,
+        )
+        distance += dash_length * 2
+
+
+def draw_dashed_labeled_box(
+    frame: np.ndarray,
+    bbox: tuple[int, int, int, int],
+    label: str,
+    color: tuple[int, int, int],
+) -> None:
+    """Draws one labeled dashed bounding box on a frame."""
+    x1, y1, x2, y2 = bbox
+    draw_dashed_line(frame, (x1, y1), (x2, y1), color)
+    draw_dashed_line(frame, (x2, y1), (x2, y2), color)
+    draw_dashed_line(frame, (x2, y2), (x1, y2), color)
+    draw_dashed_line(frame, (x1, y2), (x1, y1), color)
+    cv2.putText(
+        frame,
+        label,
+        (x1, max(15, y1 - 8)),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.55,
+        color,
+        2,
+        cv2.LINE_AA,
+    )
+
+
 def compute_iou(
     box_a: tuple[int, int, int, int],
     box_b: tuple[int, int, int, int],
@@ -141,13 +195,15 @@ def render_prediction_videos(
                 break
 
             frame_dets = camera_frames.get(frame_idx)
+            gt_frame = camera_gt_frames.get(frame_idx)
+            pred_bboxes = []
             if frame_dets is not None:
-                gt_frame = camera_gt_frames.get(frame_idx)
                 for _, row in frame_dets.iterrows():
                     x1 = int(row["X"])
                     y1 = int(row["Y"])
                     x2 = int(np.ceil(row["X"] + row["Width"]))
                     y2 = int(np.ceil(row["Y"] + row["Height"]))
+                    pred_bboxes.append((x1, y1, x2, y2))
                     track_id = int(row["Id"])
                     gt_id = find_best_gt_id((x1, y1, x2, y2), gt_frame)
                     color = color_for_id(track_id)
@@ -157,6 +213,27 @@ def render_prediction_videos(
                         f"P{track_id} | GT{gt_id}",
                         color,
                     )
+
+            if gt_frame is not None:
+                for _, gt_row in gt_frame.iterrows():
+                    gt_bbox = (
+                        int(gt_row["X"]),
+                        int(gt_row["Y"]),
+                        int(np.ceil(gt_row["X"] + gt_row["Width"])),
+                        int(np.ceil(gt_row["Y"] + gt_row["Height"])),
+                    )
+                    is_missed = all(
+                        compute_iou(gt_bbox, pred_bbox) <= 0.0
+                        for pred_bbox in pred_bboxes
+                    )
+                    if is_missed:
+                        gt_id = int(gt_row["Id"])
+                        draw_dashed_labeled_box(
+                            frame,
+                            gt_bbox,
+                            f"P-1 | GT{gt_id}",
+                            color_for_id(gt_id),
+                        )
 
             writer.write(frame)
             frame_idx += 1
