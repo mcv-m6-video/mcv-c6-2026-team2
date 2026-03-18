@@ -161,7 +161,6 @@ def print_results(summary, mread=False):
           namemap=mm.io.motchallenge_metric_names))
     return
 
-
 def eval(test, pred, **kwargs):
     """ Evaluate submission.
 
@@ -376,6 +375,21 @@ def eval(test, pred, **kwargs):
 
         return df
 
+    def compare_dataframes_singlecam(gt, ts):
+        """Compute ID-based evaluation metrics for single-camera tracking."""
+        gt = gt[['FrameId', 'Id', 'X', 'Y', 'Width', 'Height']].copy()
+        ts = ts[['FrameId', 'Id', 'X', 'Y', 'Width', 'Height']].copy()
+
+        gt = gt.set_index(['FrameId', 'Id'])
+        ts = ts.set_index(['FrameId', 'Id'])
+
+        acc = mm.utils.compare_to_groundtruth(gt, ts, 'iou')
+        metrics = list(mm.metrics.motchallenge_metrics)
+        metrics.extend(['num_frames', 'idfp', 'idfn', 'idtp'])
+        summary = mh.compute(acc, metrics=metrics, name='SingleCam')
+
+        return summary
+        
     def compare_dataframes_mtmc(gts, ts):
         """Compute ID-based evaluation metrics for multi-camera multi-object tracking.
 
@@ -428,10 +442,24 @@ def eval(test, pred, **kwargs):
     mh = mm.metrics.create()
 
     # filter prediction data
+    # pred = removeOutliersROI(pred, dstype=dstype, roidir=roidir)
+    # pred = removeOutliersSingleCam(pred)
+    # pred = removeRepetition(pred)
+
     pred = removeOutliersROI(pred, dstype=dstype, roidir=roidir)
-    pred = removeOutliersSingleCam(pred)
     pred = removeRepetition(pred)
 
+    num_gt_cams = test['CameraId'].nunique()
+    num_pred_cams = pred['CameraId'].nunique() if len(pred) > 0 else 0
+
+    if num_gt_cams == 1:
+        if len(pred) == 0:
+            raise ValueError("Predicciones vacías tras el filtrado.")
+        return compare_dataframes_singlecam(test, pred)
+
+    if num_pred_cams > 1:
+        pred = removeOutliersSingleCam(pred)
+    
     # evaluate results
     return compare_dataframes_mtmc(test, pred)
 
