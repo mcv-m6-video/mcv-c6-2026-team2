@@ -262,4 +262,3 @@ dependencies:
       - urllib3==2.6.3
       - wandb==0.25.1
       - xmltodict==1.0.4
-prefix: /ghome/group02/miniconda3/envs/eval_mcmt
