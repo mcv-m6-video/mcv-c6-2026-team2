@@ -1,4 +1,5 @@
 import math
+import os
 
 import numpy as np
 from src.models.matcher import initialize_matcher
@@ -6,6 +7,11 @@ from src.utils.camera import Camera, compute_relationships
 from src.utils.car import Car
 from src.utils.dataset import MOMCDataset
 from src.utils.track_manager import TrackManager
+from src.utils.visualization import (
+    export_camera_graph,
+    visualize_camera_graph,
+    visualize_geospatial_graph,
+)
 from tqdm import tqdm
 
 
@@ -100,7 +106,21 @@ def main(args):
             dataset.get_all_cameras()
         )
     ]
+    for cam in cam_list:
+        print(f"{cam.homography=}")
     cam_list = compute_relationships(cam_list)
+
+    graph_json_file = os.path.join(output_folder, "visuals", "camera_graph.json")
+    graph_image_file = os.path.join(output_folder, "visuals", "camera_graph.png")
+    geograph_image_file = os.path.join(output_folder, "visuals", "geo_camera_graph.png")
+    
+    export_camera_graph(
+        cam_list,
+        output_file=graph_json_file,
+    )
+
+    visualize_camera_graph(graph_json_file, output_file=graph_image_file)
+    visualize_geospatial_graph(graph_json_file, output_file=geograph_image_file)
 
     frame_idx = 1
 
@@ -141,8 +161,7 @@ def main(args):
                     dtype=np.float32,
                 )
 
-                car_image = frame[int(ytop): int(
-                    ybottom), int(xleft): int(xright)]
+                car_image = frame[int(ytop) : int(ybottom), int(xleft) : int(xright)]
 
                 if car_id not in local_cars_registry[cam_idx]:
                     local_cars_registry[cam_idx][car_id] = Car(car_id)
@@ -182,7 +201,10 @@ def main(args):
                     }
 
         # Look for matching cars
-        for qtype, queue in [("OVERLAP", overlap_queue), ("ADJACENCY", adjacency_queue)]:
+        for qtype, queue in [
+            ("OVERLAP", overlap_queue),
+            ("ADJACENCY", adjacency_queue),
+        ]:
             keys_to_remove: list[tuple[int, int]] = []
 
             for key, queue_info in queue.items():
@@ -194,10 +216,13 @@ def main(args):
 
                 for target_cam in queue_info["targets"]:
                     global_id_source: int = t_manager.local_to_global[
-                            (source_cam_idx, source_car_id)
-                        ]
-                    
-                    if target_cam.camera_idx in t_manager.global_tracks[global_id_source]:
+                        (source_cam_idx, source_car_id)
+                    ]
+
+                    if (
+                        target_cam.camera_idx
+                        in t_manager.global_tracks[global_id_source]
+                    ):
                         cams_to_remove_from_targets.append(target_cam)
                         continue
 
@@ -209,7 +234,7 @@ def main(args):
                     if qtype == "OVERLAP":
                         max_search_radius_meters = 15.0
                     else:
-                        max_search_radius_meters = float('inf')
+                        max_search_radius_meters = float("inf")
 
                     lon1, lat1 = source_centroid.x, source_centroid.y
 
@@ -237,7 +262,6 @@ def main(args):
                     #             f"   -> Target Car {t_car.car_id} at distance {d:.2f} units"
                     #         )
 
-
                     matched = False
 
                     for dist, target_car in candidate_cars:
@@ -249,7 +273,7 @@ def main(args):
                             # Already matched
                             matched = True
                             break
-                        
+
                         if source_cam_idx in t_manager.global_tracks[global_id_target]:
                             # Target already matched
                             continue
@@ -294,4 +318,4 @@ def main(args):
         pbar.update(1)
 
     # Save detections per camera
-    t_manager.save(output_folder, cam_names=dataset.get_cam_names())
+    t_manager.save(os.path.join(output_folder, "preds"), cam_names=dataset.get_cam_names())
