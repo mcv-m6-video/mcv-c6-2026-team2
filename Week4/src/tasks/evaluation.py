@@ -8,12 +8,17 @@ import os
 import zipfile
 import tarfile
 import traceback
+import json
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import motmetrics as mm
 from PIL import Image
 from argparse import ArgumentParser
 import warnings
+
+from src.utils.render_video import render_prediction_videos
+
 warnings.filterwarnings("ignore")
 
 
@@ -29,6 +34,14 @@ def get_args():
                         help="Data set type: train, validation or test.")
     parser.add_argument('-rd', '--roidir', type=str, default='ROIs',
                         help="Region of Interest images directory.")
+    parser.add_argument('--seq', type=str, default=None,
+                        help="Sequence name used to locate videos for rendering.")
+    parser.add_argument('--dataset_root', type=str, default=None,
+                        help="Dataset root used to locate videos for rendering.")
+    parser.add_argument('--eval_output_dir', type=str, default='eval_output',
+                        help="Output directory for rendered videos and saved metrics.")
+    parser.add_argument('--render_videos', action='store_true',
+                        help="Render annotated videos for the evaluated predictions.")
     return parser.parse_args()
 
 
@@ -193,6 +206,7 @@ def eval(test, pred, **kwargs):
     dstype = kwargs.pop('dstype', 'train')
     roidir = kwargs.pop('roidir', 'ROIs')
     seq = kwargs.pop('seq', None)
+    return_filtered_pred = kwargs.pop('return_filtered_pred', False)
 
     # Internal evaluation functions
     def removeOutliersROI(df, dstype='train', roidir='ROIs', cid=None):
@@ -433,7 +447,10 @@ def eval(test, pred, **kwargs):
     pred = removeRepetition(pred)
 
     # evaluate results
-    return compare_dataframes_mtmc(test, pred)
+    summary = compare_dataframes_mtmc(test, pred)
+    if return_filtered_pred:
+        return summary, pred
+    return summary
 
 
 def usage(msg=None):
@@ -449,9 +466,36 @@ def main(args):
     pred = readData(args.pred)
 
     try:
-        summary = eval(test, pred, mread=args.mread,
-                       dstype=args.dstype, roidir=args.roidir, seq=args.seq)
+        summary, filtered_pred = eval(
+            test,
+            pred,
+            mread=args.mread,
+            dstype=args.dstype,
+            roidir=args.roidir,
+            seq=args.seq,
+            return_filtered_pred=True,
+        )
         print_results(summary, mread=args.mread)
+        output_dir = getattr(args, "eval_output_dir", "eval_output")
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        metrics_path = Path(output_dir) / f"{args.seq}_metrics.json"
+        with open(metrics_path, "w") as f:
+            json.dump(json.loads(summary.iloc[-1].to_json()), f, indent=2)
+        print(f"Saved evaluation metrics to {metrics_path}")
+
+        if getattr(args, "render_videos", False):
+            if args.seq is None:
+                raise ValueError("Sequence name is required to render evaluation videos.")
+            dataset_root = getattr(args, "dataset_root", None) or args.roidir
+            render_prediction_videos(
+                dataset_root=dataset_root,
+                dstype=args.dstype,
+                seq=args.seq,
+                pred=filtered_pred,
+                output_dir=output_dir,
+                gt=test,
+            )
+            print(f"Saved annotated videos to {output_dir}")
     except Exception as e:
         if args.mread:
             print('{"error": "%s"}' % repr(e))
@@ -468,9 +512,36 @@ if __name__ == '__main__':
     test = readData(args.data[0])
     pred = readData(args.data[1])
     try:
-        summary = eval(test, pred, mread=args.mread,
-                       dstype=args.dstype, roidir=args.roidir)
+        summary, filtered_pred = eval(
+            test,
+            pred,
+            mread=args.mread,
+            dstype=args.dstype,
+            roidir=args.roidir,
+            seq=args.seq,
+            return_filtered_pred=True,
+        )
         print_results(summary, mread=args.mread)
+        output_dir = getattr(args, "eval_output_dir", "eval_output")
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        metrics_path = Path(output_dir) / f"{args.seq}_metrics.json" if args.seq else Path(output_dir) / "metrics.json"
+        with open(metrics_path, "w") as f:
+            json.dump(json.loads(summary.iloc[-1].to_json()), f, indent=2)
+        print(f"Saved evaluation metrics to {metrics_path}")
+
+        if getattr(args, "render_videos", False):
+            if args.seq is None:
+                raise ValueError("Sequence name is required to render evaluation videos.")
+            dataset_root = getattr(args, "dataset_root", None) or args.roidir
+            render_prediction_videos(
+                dataset_root=dataset_root,
+                dstype=args.dstype,
+                seq=args.seq,
+                pred=filtered_pred,
+                output_dir=output_dir,
+                gt=test,
+            )
+            print(f"Saved annotated videos to {output_dir}")
     except Exception as e:
         if args.mread:
             print('{"error": "%s"}' % repr(e))

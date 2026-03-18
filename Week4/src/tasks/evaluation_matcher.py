@@ -3,6 +3,7 @@ import json
 import os
 from collections import defaultdict
 from pathlib import Path
+import re
 
 import cv2
 import numpy as np
@@ -12,6 +13,8 @@ import matplotlib.pyplot as plt
 from src.models.matcher import get_matcher, initialize_matcher
 from src.utils.camera import Camera, compute_relationships
 from src.utils.car import Car
+from src.utils.reid_training_dataset import ReIDFolderDataset, split_indices_by_pid
+from src.utils.render_video import render_assignment_videos
 from src.utils.track_manager import TrackManager
 
 
@@ -59,7 +62,8 @@ def load_sequence_metadata(dataset_root: str, seq: str):
         gt_by_camera.append(load_gt_detections(cam_dir / "gt" / "gt.txt"))
         roi_mask = cv2.imread(str(cam_dir / "roi.jpg"), cv2.IMREAD_GRAYSCALE)
         if roi_mask is None:
-            raise FileNotFoundError(f"ROI mask not found for camera {cam_dir.name}: {cam_dir / 'roi.jpg'}")
+            raise FileNotFoundError(
+                f"ROI mask not found for camera {cam_dir.name}: {cam_dir / 'roi.jpg'}")
 
         # Calibration is needed to project detections into GPS space and reason
         # about overlapping/adjacent cameras, exactly like in the matching task.
@@ -125,39 +129,101 @@ def load_gt_detections(gt_path: Path):
     return frame_to_dets
 
 
-def color_for_id(track_id: int) -> tuple[int, int, int]:
-    """Creates a deterministic BGR color from an id."""
-    rng = np.random.default_rng(track_id + 12345)
-    color = rng.integers(64, 255, size=3)
-    return int(color[0]), int(color[1]), int(color[2])
+def resolve_split_track_filters(
+    dataset_root: str,
+    sequences: list[str],
+    train_sequences_arg: str,
+    val_sequences_arg: str,
+    val_ratio: float,
+    split_seed: int,
+    split_subset: str,
+) -> dict[str, set[int] | None]:
+    """Rebuilds the train/val split for one or more sequences from CLI args."""
+    train_sequences = [
+        seq_name.strip()
+        for seq_name in train_sequences_arg.split(",")
+        if seq_name.strip()
+    ]
+    val_sequences = [
+        seq_name.strip()
+        for seq_name in val_sequences_arg.split(",")
+        if seq_name.strip()
+    ]
 
+    if split_subset == "all":
+        LOGGER.info(
+            "Evaluating full sequences without split filtering: %s", sequences)
+        return {seq: None for seq in sequences}
 
-def annotate_frame(frame: np.ndarray, detections: list[dict], cam_idx: int, t_manager: TrackManager):
-    """Draws predicted global ids and bounding boxes on a frame."""
-    annotated = frame.copy()
-    for det in detections:
-        local_id = det["track_id"]
-        bbox = det["bbox"].astype(int)
-        key = (cam_idx, local_id)
-        global_id = t_manager.local_to_global.get(key, -1)
-        color = color_for_id(global_id if global_id >= 0 else local_id)
-        x1, y1, x2, y2 = bbox.tolist()
-        cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
-        label = f"G{global_id} | L{local_id}"
-        cv2.putText(
-            annotated,
-            label,
-            (x1, max(15, y1 - 8)),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.55,
-            color,
-            2,
-            cv2.LINE_AA,
+    if not train_sequences and not val_sequences:
+        raise ValueError(
+            "split_subset requires CLI split information. Provide --train_sequences and, if applicable, --val_sequences."
         )
-    return annotated
+
+    if val_sequences:
+        if split_subset == "train":
+            raise ValueError(
+                "split_subset='train' is not supported when the checkpoint used dedicated validation sequences."
+            )
+        invalid_sequences = [
+            seq for seq in sequences if seq not in val_sequences]
+        if invalid_sequences:
+            raise ValueError(
+                f"Sequences {invalid_sequences} are not part of the dedicated validation sequences provided on the command line: {val_sequences}"
+            )
+        LOGGER.info(
+            "Checkpoint used dedicated validation sequences. Evaluating the full validation sequences %s.",
+            sequences,
+        )
+        return {seq: None for seq in sequences}
+
+    invalid_sequences = [
+        seq for seq in sequences if seq not in train_sequences]
+    if invalid_sequences:
+        raise ValueError(
+            f"Sequences {invalid_sequences} are not part of the training sequences provided on the command line: {train_sequences}"
+        )
+
+    base_train_set = ReIDFolderDataset(
+        dataset_root,
+        sequences=train_sequences,
+        transform=None,
+    )
+    train_indices, val_indices = split_indices_by_pid(
+        base_train_set.samples,
+        val_ratio=val_ratio,
+        seed=split_seed,
+    )
+
+    selected_indices = val_indices if split_subset == "val" else train_indices
+
+    allowed_track_ids_by_sequence = {seq: set() for seq in sequences}
+    for idx in selected_indices:
+        sample = base_train_set.samples[idx]
+        if sample.sequence not in allowed_track_ids_by_sequence:
+            continue
+        seq_num = int(re.sub(r"\D", "", sample.sequence))
+        seq_prefix = seq_num * 1_000_000
+        allowed_track_ids_by_sequence[sample.sequence].add(
+            sample.pid - seq_prefix)
+
+    for seq in sequences:
+        LOGGER.info(
+            "Rebuilt %s split from CLI args | seq=%s | val_ratio=%.3f | seed=%d | kept_tracks=%d",
+            split_subset,
+            seq,
+            val_ratio,
+            split_seed,
+            len(allowed_track_ids_by_sequence[seq]),
+        )
+    return allowed_track_ids_by_sequence
 
 
-def collect_tracks_from_gt(dataset_root: str, seq: str):
+def collect_tracks_from_gt(
+    dataset_root: str,
+    seq: str,
+    allowed_track_ids: set[int] | None = None,
+):
     """Builds one Car instance per GT track using all detections in the sequence."""
     cameras, gt_by_camera, video_paths, camera_names = load_sequence_metadata(
         dataset_root, seq)
@@ -179,6 +245,8 @@ def collect_tracks_from_gt(dataset_root: str, seq: str):
             detections = gt_frames.get(frame_idx, [])
             for det in detections:
                 local_id = det["track_id"]
+                if allowed_track_ids is not None and local_id not in allowed_track_ids:
+                    continue
                 bbox = det["bbox"]
                 x1, y1, x2, y2 = bbox.astype(int)
                 car_image = frame[y1:y2, x1:x2]
@@ -217,7 +285,11 @@ def collect_tracks_from_gt(dataset_root: str, seq: str):
     return cameras, gt_by_camera, video_paths, camera_names, track_manager, local_cars_registry
 
 
-def match_all_tracks(track_manager: TrackManager, local_cars_registry: dict[int, dict[int, Car]]):
+def match_all_tracks(
+    track_manager: TrackManager,
+    local_cars_registry: dict[int, dict[int, Car]],
+    seq: str,
+):
     """Compares every local track against every other local track."""
     tracks = [
         (cam_idx, local_id, car)
@@ -247,6 +319,7 @@ def match_all_tracks(track_manager: TrackManager, local_cars_registry: dict[int,
 
             pairwise_decisions.append(
                 {
+                    "sequence": seq,
                     "cam_idx_a": cam_idx_a,
                     "local_id_a": local_id_a,
                     "cam_idx_b": cam_idx_b,
@@ -422,6 +495,22 @@ def compute_pairwise_metrics(track_manager: TrackManager):
     return metrics
 
 
+def aggregate_clustering_metrics(metrics_list: list[dict]) -> dict:
+    """Aggregates per-sequence clustering metrics into one combined report."""
+    tp = sum(metrics["true_positive"] for metrics in metrics_list)
+    fp = sum(metrics["false_positive"] for metrics in metrics_list)
+    fn = sum(metrics["false_negative"] for metrics in metrics_list)
+    tn = sum(metrics["true_negative"] for metrics in metrics_list)
+
+    aggregated = {
+        "num_camera_local_tracks": sum(metrics["num_camera_local_tracks"] for metrics in metrics_list),
+        "num_true_global_ids": sum(metrics["num_true_global_ids"] for metrics in metrics_list),
+        "num_pred_global_ids": sum(metrics["num_pred_global_ids"] for metrics in metrics_list),
+    }
+    aggregated.update(compute_binary_metrics(tp, fp, fn, tn))
+    return aggregated
+
+
 def build_track_manager_for_threshold(
     local_cars_registry: dict[int, dict[int, Car]],
     pairwise_decisions: list[dict],
@@ -470,6 +559,7 @@ def plot_precision_recall_curve(
     metrics_by_threshold: list[dict],
     pairwise_decisions: list[dict],
     output_path: Path,
+    plot_title: str,
 ) -> None:
     """Plots a precision-recall curve from threshold sweep results."""
 
@@ -559,7 +649,7 @@ def plot_precision_recall_curve(
     # --- Labels ---
     plt.xlabel("Recall")
     plt.ylabel("Precision")
-    plt.title("Matcher Pairwise Precision-Recall Curve")
+    plt.title(plot_title)
 
     plt.legend(
         title="Matcher labels are thresholds;\ngray labels are random positive rates",
@@ -573,87 +663,22 @@ def plot_precision_recall_curve(
     LOGGER.info("Saved precision-recall curve to %s", output_path)
 
 
-def render_annotated_videos(
-    output_dir: str,
+def run_matcher_on_gt(
+    dataset_root: str,
     seq: str,
-    video_paths: list[str],
-    gt_by_camera: list[dict],
-    camera_names: list[str],
-    assignments: dict[tuple[int, int], int],
+    allowed_track_ids: set[int] | None = None,
 ):
-    """Renders final annotated videos using the finished global assignments."""
-    output_root = Path(output_dir)
-    output_root.mkdir(parents=True, exist_ok=True)
-    LOGGER.info("Rendering annotated videos to %s", output_root)
-
-    for cam_idx, (video_path, gt_frames, cam_name) in enumerate(
-        zip(video_paths, gt_by_camera, camera_names)
-    ):
-        # This second pass is important: we render with the final global ids
-        # after all cross-camera merges have already been decided.
-        LOGGER.info("Rendering camera %s from %s", cam_name, video_path)
-        cap = cv2.VideoCapture(video_path)
-        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        fps = float(cap.get(cv2.CAP_PROP_FPS)) or 10.0
-        writer = cv2.VideoWriter(
-            str(output_root / f"{seq}_{cam_name}_matched.mp4"),
-            cv2.VideoWriter_fourcc(*"mp4v"),
-            fps,
-            (width, height),
-        )
-
-        frame_idx = 1
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            detections = gt_frames.get(frame_idx, [])
-            annotated = frame.copy()
-            for det in detections:
-                local_id = det["track_id"]
-                bbox = det["bbox"].astype(int)
-                # Each local GT track receives the predicted global id assigned
-                # by the matcher pipeline.
-                global_id = assignments.get((cam_idx, local_id), -1)
-                color = color_for_id(global_id if global_id >= 0 else local_id)
-                x1, y1, x2, y2 = bbox.tolist()
-                cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
-                cv2.putText(
-                    annotated,
-                    f"G{global_id} | L{local_id}",
-                    (x1, max(15, y1 - 8)),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.55,
-                    color,
-                    2,
-                    cv2.LINE_AA,
-                )
-
-            writer.write(annotated)
-            if frame_idx == 1 or frame_idx % 500 == 0:
-                LOGGER.info(
-                    "Rendered camera %s | frame %d",
-                    cam_name,
-                    frame_idx,
-                )
-            frame_idx += 1
-
-        cap.release()
-        writer.release()
-        LOGGER.info("Finished rendering camera %s", cam_name)
-
-
-def run_matcher_on_gt(dataset_root: str, seq: str):
     """Runs offline all-to-all matching using GT detections."""
     LOGGER.info("Starting GT-based matcher evaluation on sequence %s", seq)
     cameras, gt_by_camera, video_paths, camera_names, track_manager, local_cars_registry = collect_tracks_from_gt(
-        dataset_root, seq
+        dataset_root,
+        seq,
+        allowed_track_ids=allowed_track_ids,
     )
 
     # After all local tracks are built, compare each one against all the others.
-    pairwise_decisions = match_all_tracks(track_manager, local_cars_registry)
+    pairwise_decisions = match_all_tracks(
+        track_manager, local_cars_registry, seq)
     positive_prevalence = compute_pair_prevalence(pairwise_decisions)
 
     decision_metrics = compute_pairwise_decision_metrics(pairwise_decisions)
@@ -678,26 +703,30 @@ def run_matcher_on_gt(dataset_root: str, seq: str):
         gt_by_camera,
         video_paths,
         camera_names,
+        allowed_track_ids,
     )
 
 
 def main(args):
     setup_logging()
     dataset_root = args.dataset_root
-    seq = args.seq
+    sequences = [seq.strip() for seq in args.seq.split(",") if seq.strip()]
     match_checkpoint = args.match_checkpoint
+    split_subset = getattr(args, "split_subset", "all")
+    seq_label = "_".join(sequences)
     output_dir = getattr(args, "eval_output_dir",
-                         os.path.join("outputs", "matcher_eval", seq))
+                         os.path.join("outputs", "matcher_eval", seq_label))
     thresholds = build_thresholds(
         args.threshold_start,
         args.threshold_end,
         args.threshold_step,
     )
     LOGGER.info(
-        "Evaluation config | dataset_root=%s | seq=%s | checkpoint=%s | output_dir=%s | thresholds=%s",
+        "Evaluation config | dataset_root=%s | seqs=%s | checkpoint=%s | split_subset=%s | output_dir=%s | thresholds=%s",
         dataset_root,
-        seq,
+        sequences,
         match_checkpoint,
+        split_subset,
         output_dir,
         thresholds,
     )
@@ -707,52 +736,117 @@ def main(args):
         raise RuntimeError("Matcher could not be initialized for evaluation.")
     LOGGER.info("Matcher initialized successfully")
 
-    # First pass: collect tracks and similarity scores once.
-    default_metrics, pairwise_decisions, local_cars_registry, assignments, gt_by_camera, video_paths, camera_names = run_matcher_on_gt(
-        dataset_root, seq
+    allowed_track_ids_by_sequence = resolve_split_track_filters(
+        dataset_root,
+        sequences,
+        args.train_sequences,
+        args.val_sequences,
+        args.val_ratio,
+        args.split_seed,
+        split_subset,
     )
+
+    sequence_runs = []
+    all_pairwise_decisions = []
+    default_clustering_metrics_per_sequence = []
+
+    # First pass: collect tracks and similarity scores once per sequence.
+    for seq in sequences:
+        default_metrics, pairwise_decisions, local_cars_registry, assignments, gt_by_camera, video_paths, camera_names, allowed_track_ids = run_matcher_on_gt(
+            dataset_root,
+            seq,
+            allowed_track_ids=allowed_track_ids_by_sequence[seq],
+        )
+        sequence_runs.append(
+            {
+                "seq": seq,
+                "default_metrics": default_metrics,
+                "pairwise_decisions": pairwise_decisions,
+                "local_cars_registry": local_cars_registry,
+                "assignments": assignments,
+                "gt_by_camera": gt_by_camera,
+                "video_paths": video_paths,
+                "camera_names": camera_names,
+                "allowed_track_ids": allowed_track_ids,
+            }
+        )
+        all_pairwise_decisions.extend(pairwise_decisions)
+        default_clustering_metrics_per_sequence.append(
+            default_metrics["final_clustering_metrics"]
+        )
 
     os.makedirs(output_dir, exist_ok=True)
     metrics_by_threshold = []
     best_metrics = None
-    best_assignments = assignments
+    best_assignments_by_sequence = {
+        run["seq"]: run["assignments"] for run in sequence_runs
+    }
+
+    default_metrics_summary = {
+        "pairwise_positive_prevalence": compute_pair_prevalence(all_pairwise_decisions),
+        "random_baselines": {
+            "fair_coin": compute_random_baseline_metrics(all_pairwise_decisions, 0.5),
+            "prevalence_matched": compute_random_baseline_metrics(
+                all_pairwise_decisions,
+                compute_pair_prevalence(all_pairwise_decisions),
+            ),
+        },
+        "pairwise_decision_metrics": compute_pairwise_decision_metrics(all_pairwise_decisions),
+        "final_clustering_metrics": aggregate_clustering_metrics(
+            default_clustering_metrics_per_sequence
+        ),
+        "per_sequence": {
+            run["seq"]: run["default_metrics"] for run in sequence_runs
+        },
+    }
 
     for threshold in thresholds:
         pairwise_metrics = compute_pairwise_decision_metrics_at_threshold(
-            pairwise_decisions, threshold
+            all_pairwise_decisions, threshold
         )
-        threshold_track_manager = build_track_manager_for_threshold(
-            local_cars_registry,
-            pairwise_decisions,
-            threshold,
+        per_sequence_clustering_metrics = []
+        threshold_assignments_by_sequence = {}
+        for run in sequence_runs:
+            threshold_track_manager = build_track_manager_for_threshold(
+                run["local_cars_registry"],
+                run["pairwise_decisions"],
+                threshold,
+            )
+            per_sequence_clustering_metrics.append(
+                compute_pairwise_metrics(threshold_track_manager)
+            )
+            threshold_assignments_by_sequence[run["seq"]] = (
+                threshold_track_manager.local_to_global.copy()
+            )
+        clustering_metrics = aggregate_clustering_metrics(
+            per_sequence_clustering_metrics
         )
-        clustering_metrics = compute_pairwise_metrics(threshold_track_manager)
         threshold_metrics = {
             "threshold": threshold,
-            "pairwise_positive_prevalence": compute_pair_prevalence(pairwise_decisions),
+            "pairwise_positive_prevalence": compute_pair_prevalence(all_pairwise_decisions),
             "random_baselines": {
-                "fair_coin": compute_random_baseline_metrics(pairwise_decisions, 0.5),
+                "fair_coin": compute_random_baseline_metrics(all_pairwise_decisions, 0.5),
                 "prevalence_matched": compute_random_baseline_metrics(
-                    pairwise_decisions,
-                    compute_pair_prevalence(pairwise_decisions),
+                    all_pairwise_decisions,
+                    compute_pair_prevalence(all_pairwise_decisions),
                 ),
             },
             "pairwise_decision_metrics": pairwise_metrics,
             "final_clustering_metrics": clustering_metrics,
-            "beats_fair_coin_f1": pairwise_metrics["f1"] > compute_random_baseline_metrics(pairwise_decisions, 0.5)["f1"],
+            "beats_fair_coin_f1": pairwise_metrics["f1"] > compute_random_baseline_metrics(all_pairwise_decisions, 0.5)["f1"],
             "beats_prevalence_matched_f1": pairwise_metrics["f1"] > compute_random_baseline_metrics(
-                pairwise_decisions,
-                compute_pair_prevalence(pairwise_decisions),
+                all_pairwise_decisions,
+                compute_pair_prevalence(all_pairwise_decisions),
             )["f1"],
         }
         metrics_by_threshold.append(threshold_metrics)
 
         if best_metrics is None or pairwise_metrics["f1"] > best_metrics["pairwise_decision_metrics"]["f1"]:
             best_metrics = threshold_metrics
-            best_assignments = threshold_track_manager.local_to_global.copy()
+            best_assignments_by_sequence = threshold_assignments_by_sequence
 
     summary_metrics = {
-        "default_matcher_threshold_metrics": default_metrics,
+        "default_matcher_threshold_metrics": default_metrics_summary,
         "threshold_sweep": metrics_by_threshold,
         "best_threshold_by_pairwise_f1": best_metrics,
     }
@@ -760,43 +854,50 @@ def main(args):
     render_threshold = args.render_threshold if args.render_threshold is not None else best_metrics[
         "threshold"]
     LOGGER.info("Rendering videos with threshold %.3f", render_threshold)
-    render_track_manager = build_track_manager_for_threshold(
-        local_cars_registry,
-        pairwise_decisions,
-        render_threshold,
-    )
-    # Second pass: render the videos using the chosen predicted assignments.
-    render_annotated_videos(
-        output_dir=output_dir,
-        seq=seq,
-        video_paths=video_paths,
-        gt_by_camera=gt_by_camera,
-        camera_names=camera_names,
-        assignments=render_track_manager.local_to_global,
-    )
-    metrics_path = Path(output_dir) / f"{seq}_metrics.json"
-    assignments_path = Path(output_dir) / f"{seq}_assignments.json"
+    serializable_assignments = {}
+    for run in sequence_runs:
+        render_track_manager = build_track_manager_for_threshold(
+            run["local_cars_registry"],
+            run["pairwise_decisions"],
+            render_threshold,
+        )
+        render_assignment_videos(
+            output_dir=output_dir,
+            seq=run["seq"],
+            video_paths=run["video_paths"],
+            gt_by_camera=run["gt_by_camera"],
+            camera_names=run["camera_names"],
+            assignments=render_track_manager.local_to_global,
+            allowed_track_ids=run["allowed_track_ids"],
+            logger=LOGGER,
+        )
+        serializable_assignments[run["seq"]] = {
+            f"{cam_idx}:{local_id}": global_id
+            for (cam_idx, local_id), global_id in render_track_manager.local_to_global.items()
+        }
+    metrics_path = Path(output_dir) / f"{seq_label}_metrics.json"
+    assignments_path = Path(output_dir) / f"{seq_label}_assignments.json"
     pairwise_decisions_path = Path(
-        output_dir) / f"{seq}_pairwise_decisions.json"
-    pr_curve_path = Path(output_dir) / f"{seq}_precision_recall_curve.png"
+        output_dir) / f"{seq_label}_pairwise_decisions.json"
+    pr_curve_path = Path(output_dir) / \
+        f"{seq_label}_precision_recall_curve.png"
 
     with open(metrics_path, "w") as f:
         json.dump(summary_metrics, f, indent=2)
     LOGGER.info("Saved metrics to %s", metrics_path)
 
-    serializable_assignments = {
-        f"{cam_idx}:{local_id}": global_id
-        for (cam_idx, local_id), global_id in render_track_manager.local_to_global.items()
-    }
     with open(assignments_path, "w") as f:
         json.dump(serializable_assignments, f, indent=2)
     LOGGER.info("Saved assignments to %s", assignments_path)
 
     with open(pairwise_decisions_path, "w") as f:
-        json.dump(pairwise_decisions, f, indent=2)
+        json.dump(all_pairwise_decisions, f, indent=2)
     LOGGER.info("Saved pairwise decisions to %s", pairwise_decisions_path)
+
+    plot_title = f"Matcher Pairwise Precision-Recall Curve {seq_label}_{split_subset}"
+
     plot_precision_recall_curve(
-        metrics_by_threshold, pairwise_decisions, pr_curve_path)
+        metrics_by_threshold, all_pairwise_decisions, pr_curve_path, plot_title)
 
     print(f"Saved annotated videos and metrics to {output_dir}")
     print(json.dumps(summary_metrics, indent=2))

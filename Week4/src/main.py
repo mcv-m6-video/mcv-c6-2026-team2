@@ -71,6 +71,11 @@ def args_parser():
     evaluation_subparser.add_argument(
         "--roidir", type=str, default="datasets/AI_CITY_CHALLENGE_2022_TRAIN")
     evaluation_subparser.add_argument("-m", "--mread", action="store_true")
+    evaluation_subparser.add_argument(
+        "--render_videos",
+        action="store_true",
+        help="Render annotated per-camera videos for the evaluated predictions.",
+    )
     evaluation_subparser.set_defaults(func=evaluate)
 
     # evaluation of the matcher independently using the GT
@@ -84,6 +89,37 @@ def args_parser():
         "--threshold_step", type=float, default=0.05)
     evaluation_matcher_subparser.add_argument(
         "--render_threshold", type=float, default=None)
+    evaluation_matcher_subparser.add_argument(
+        "--train_sequences",
+        type=str,
+        default="",
+        help="Comma-separated sequences used as the training pool when reconstructing train/val identity splits.",
+    )
+    evaluation_matcher_subparser.add_argument(
+        "--val_sequences",
+        type=str,
+        default="",
+        help="Comma-separated dedicated validation sequences, if your training used them.",
+    )
+    evaluation_matcher_subparser.add_argument(
+        "--val_ratio",
+        type=float,
+        default=0.2,
+        help="Validation identity ratio used during training when no dedicated validation sequences were provided.",
+    )
+    evaluation_matcher_subparser.add_argument(
+        "--split_seed",
+        type=int,
+        default=42,
+        help="Random seed used to reconstruct the train/val identity split.",
+    )
+    evaluation_matcher_subparser.add_argument(
+        "--split_subset",
+        type=str,
+        choices=["all", "train", "val"],
+        default="all",
+        help="Subset of the training-time split to evaluate: full sequences, only train identities, or only val identities.",
+    )
     evaluation_matcher_subparser.set_defaults(func=evaluate_matcher)
 
     args = main_parser.parse_args()
