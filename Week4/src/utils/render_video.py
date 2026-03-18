@@ -6,6 +6,10 @@ import numpy as np
 import pandas as pd
 
 
+RENDER_FOURCC = "XVID"
+RENDER_EXTENSION = ".avi"
+
+
 def color_for_id(track_id: int) -> tuple[int, int, int]:
     """Creates a deterministic BGR color from an id."""
     rng = np.random.default_rng(int(track_id) + 12345)
@@ -31,6 +35,23 @@ def draw_labeled_box(
         color,
         2,
         cv2.LINE_AA,
+    )
+
+
+def build_video_writer(
+    output_root: Path,
+    filename_stem: str,
+    fps: float,
+    width: int,
+    height: int,
+) -> cv2.VideoWriter:
+    """Creates a video writer with a stable AVI/XVID configuration."""
+    output_path = output_root / f"{filename_stem}{RENDER_EXTENSION}"
+    return cv2.VideoWriter(
+        str(output_path),
+        cv2.VideoWriter_fourcc(*RENDER_FOURCC),
+        fps,
+        (width, height),
     )
 
 
@@ -172,18 +193,20 @@ def render_prediction_videos(
         cam_name = f"c{int(cam_id):03d}"
         video_path = Path(dataset_root) / dstype / seq / cam_name / "vdo.avi"
         if not video_path.exists():
-            print(f"Warning: video not found for camera {cam_name}: {video_path}")
+            print(
+                f"Warning: video not found for camera {cam_name}: {video_path}")
             continue
 
         cap = cv2.VideoCapture(str(video_path))
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fps = float(cap.get(cv2.CAP_PROP_FPS)) or 10.0
-        writer = cv2.VideoWriter(
-            str(output_root / f"{seq}_{cam_name}_{suffix}.mp4"),
-            cv2.VideoWriter_fourcc(*"mp4v"),
-            fps,
-            (width, height),
+        writer = build_video_writer(
+            output_root=output_root,
+            filename_stem=f"{seq}_{cam_name}_{suffix}",
+            fps=fps,
+            width=width,
+            height=height,
         )
 
         frame_idx = 1
@@ -268,11 +291,12 @@ def render_assignment_videos(
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fps = float(cap.get(cv2.CAP_PROP_FPS)) or 10.0
-        writer = cv2.VideoWriter(
-            str(output_root / f"{seq}_{cam_name}_{suffix}.mp4"),
-            cv2.VideoWriter_fourcc(*"mp4v"),
-            fps,
-            (width, height),
+        writer = build_video_writer(
+            output_root=output_root,
+            filename_stem=f"{seq}_{cam_name}_{suffix}",
+            fps=fps,
+            width=width,
+            height=height,
         )
 
         frame_idx = 1
