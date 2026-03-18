@@ -1,3 +1,4 @@
+import json
 import math
 import os
 
@@ -11,6 +12,7 @@ from src.utils.visualization import (
     export_camera_graph,
     visualize_camera_graph,
     visualize_geospatial_graph,
+    visualize_spatial_filter
 )
 from tqdm import tqdm
 
@@ -106,8 +108,6 @@ def main(args):
             dataset.get_all_cameras()
         )
     ]
-    for cam in cam_list:
-        print(f"{cam.homography=}")
     cam_list = compute_relationships(cam_list)
 
     graph_json_file = os.path.join(output_folder, "visuals", "camera_graph.json")
@@ -237,6 +237,20 @@ def main(args):
                         max_search_radius_meters = float("inf")
 
                     lon1, lat1 = source_centroid.x, source_centroid.y
+                    export_qualitative = (qtype == "OVERLAP")
+                    qual_data = {}
+                    if export_qualitative:
+                        qual_data[(source_cam_idx, source_car_id)] = {
+                            "frame": frame_idx,
+                            "source_car": {
+                                "id": source_car_id,
+                                "cam": source_cam_idx,
+                                "lon": lon1, "lat": lat1,
+                                "bbox": source_car.pixel_bbox[-1].tolist()
+                            },
+                            "before_filter_targets": [],
+                            "after_filter_targets": []
+                        }
 
                     for target_car in target_active_cars:
                         target_centroid = target_car.gps_bbox[-1].centroid
@@ -248,8 +262,24 @@ def main(args):
 
                         dist_meters = 111319.0 * math.sqrt(dx**2 + dy**2)
 
+                        if export_qualitative:
+                            qual_data[(source_cam_idx, source_car_id)]["before_filter_targets"].append({
+                                "id": target_car.car_id,
+                                "dist_meters": dist_meters,
+                                "lon": lon2, "lat": lat2,
+                                "bbox": target_car.pixel_bbox[-1].tolist()
+                            })
+
                         if dist_meters <= max_search_radius_meters:
                             candidate_cars.append((dist_meters, target_car))
+
+                            if export_qualitative:
+                                qual_data[(source_cam_idx, source_car_id)]["after_filter_targets"].append({
+                                    "id": target_car.car_id,
+                                    "dist_meters": dist_meters,
+                                    "lon": lon2, "lat": lat2,
+                                    "bbox": target_car.pixel_bbox[-1].tolist()
+                                })
 
                     candidate_cars.sort(key=lambda x: x[0])
 
@@ -290,6 +320,15 @@ def main(args):
                                 target_cam.camera_idx,
                                 target_car.car_id,
                             )
+
+                            if export_qualitative:
+                                output_qual_json = os.path.join(output_folder, "visuals", f"qualitative_ovelap_f{frame_idx}_c{source_car_id}.json")
+                                output_qual_png = os.path.join(output_folder, "visuals", f"qualitative_ovelap_f{frame_idx}_c{source_car_id}.png")
+                                with open(output_qual_json, "w") as f:
+                                    json.dump(qual_data[(source_cam_idx, source_car_id)], f, indent=4)
+
+                                visualize_spatial_filter(output_qual_json, dataset.data["videos"][target_cam.camera_idx], output_qual_png)
+
                             matched = True
                             break
 
