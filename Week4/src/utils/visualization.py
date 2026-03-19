@@ -1,10 +1,13 @@
 import json
+import os
+
+import cv2
+import matplotlib.lines as mlines
+import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
+import networkx as nx
 
 from .camera import Camera
-import networkx as nx
-import matplotlib.pyplot as plt
-import matplotlib.lines as mlines
-import os
 
 
 def export_camera_graph(
@@ -130,7 +133,9 @@ def visualize_camera_graph(
     print(f"Graph saved as '{output_file}'")
 
 
-def visualize_geospatial_graph(json_file: str, output_file: str = "results/visuals/camera_graph.png"):
+def visualize_geospatial_graph(
+    json_file: str, output_file: str = "results/visuals/camera_graph.png"
+):
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
     # 1. Load the exported data
     with open(json_file, "r") as f:
@@ -182,7 +187,7 @@ def visualize_geospatial_graph(json_file: str, output_file: str = "results/visua
     nx.draw_networkx_labels(G, positions, font_size=11, font_weight="bold", ax=ax)
 
     # ---------------------------------------------------------
-    # 🛠️ THE AXES OVERRIDE
+    # THE AXES OVERRIDE
     # NetworkX turns axes off by default. We force them back on here.
     ax.set_axis_on()
     ax.tick_params(left=True, bottom=True, labelleft=True, labelbottom=True)
@@ -219,3 +224,78 @@ def visualize_geospatial_graph(json_file: str, output_file: str = "results/visua
     plt.tight_layout()
     plt.savefig(output_file, dpi=300)
     print(f"Geospatial graph saved as '{output_file}'")
+
+
+def visualize_spatial_filter(
+    json_path: str, target_video_path: str, output_image: str = "filter_result.png"
+):
+    os.makedirs(os.path.dirname(output_image), exist_ok=True)
+    # 1. Load the exported JSON data
+    with open(json_path, "r") as f:
+        data = json.load(f)
+
+    frame_idx = data["frame"]
+    source_car = data["source_car"]
+    before_targets = data["before_filter_targets"]
+    after_targets = data["after_filter_targets"]
+
+    # Create a fast lookup set for the cars that SURVIVED the filter
+    accepted_ids = {t["id"] for t in after_targets}
+
+    # 2. Open the target camera's video and jump to the exact frame
+    cap = cv2.VideoCapture(target_video_path)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+    ret, frame = cap.read()
+
+    if not ret:
+        print(f"Error: Could not read frame {frame_idx} from {target_video_path}")
+        cap.release()
+        return
+
+    # 3. Draw the bounding boxes
+    for target in before_targets:
+        car_id = target["id"]
+        dist = target["dist_meters"]
+        bbox = target["bbox"]  # Assumes format [x1, y1, x2, y2]
+
+        # Check if this car passed the threshold
+        if car_id in accepted_ids:
+            color = (0, 255, 0)  # BGR Green (Accepted)
+            thickness = 3
+            label = f"ID:{car_id} | {dist:.1f}m (KEEP)"
+        else:
+            color = (0, 0, 255)  # BGR Red (Rejected)
+            thickness = 2
+            label = f"ID:{car_id} | {dist:.1f}m (DROP)"
+
+        x1, y1, x2, y2 = map(int, bbox)
+
+        # Draw Rectangle and Label
+        cv2.rectangle(frame, (x1, y1), (x2, y2), color, thickness)
+        cv2.putText(frame, label, (x1, y1 - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+
+    cap.release()
+
+    # 4. Convert BGR to RGB for a beautiful Matplotlib plot
+    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+    plt.figure(figsize=(16, 9))
+    plt.imshow(frame_rgb)
+    plt.axis("off")
+
+    # Add an informative title
+    title_text = (
+        f"Spatial Filter: Target Camera (Frame {frame_idx})\n"
+        f"Searching for match to Source Car ID: {source_car['id']} (Cam {source_car['cam']})"
+    )
+    plt.title(title_text, fontsize=16, fontweight="bold", pad=15)
+
+    # Create a custom legend
+    green_patch = mpatches.Patch(color="green", label="Accepted (<15m)")
+    red_patch = mpatches.Patch(color="red", label="Rejected (>15m)")
+    plt.legend(handles=[green_patch, red_patch], loc="lower right", fontsize=14)
+
+    # Save and show
+    plt.tight_layout()
+    plt.savefig(output_image, dpi=300, bbox_inches="tight")
+    print(f"Saved visualization to '{output_image}'")
