@@ -1,3 +1,7 @@
+# week5 data directories
+Week5/data/soccernetball/extracted_frames
+Week5/data/soccernetball/SN-BAS-2025
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
