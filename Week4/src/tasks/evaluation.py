@@ -485,7 +485,8 @@ def main(args):
 
         if getattr(args, "render_videos", False):
             if args.seq is None:
-                raise ValueError("Sequence name is required to render evaluation videos.")
+                raise ValueError(
+                    "Sequence name is required to render evaluation videos.")
             dataset_root = getattr(args, "dataset_root", None) or args.roidir
             render_prediction_videos(
                 dataset_root=dataset_root,
@@ -524,14 +525,16 @@ if __name__ == '__main__':
         print_results(summary, mread=args.mread)
         output_dir = getattr(args, "eval_output_dir", "eval_output")
         Path(output_dir).mkdir(parents=True, exist_ok=True)
-        metrics_path = Path(output_dir) / f"{args.seq}_metrics.json" if args.seq else Path(output_dir) / "metrics.json"
+        metrics_path = Path(
+            output_dir) / f"{args.seq}_metrics.json" if args.seq else Path(output_dir) / "metrics.json"
         with open(metrics_path, "w") as f:
             json.dump(json.loads(summary.iloc[-1].to_json()), f, indent=2)
         print(f"Saved evaluation metrics to {metrics_path}")
 
         if getattr(args, "render_videos", False):
             if args.seq is None:
-                raise ValueError("Sequence name is required to render evaluation videos.")
+                raise ValueError(
+                    "Sequence name is required to render evaluation videos.")
             dataset_root = getattr(args, "dataset_root", None) or args.roidir
             render_prediction_videos(
                 dataset_root=dataset_root,
