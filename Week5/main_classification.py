@@ -165,14 +165,25 @@ def main(args):
     headers = ["Class", "Average Precision"]
     print(tabulate(table, headers, tablefmt="grid"))
 
-    # Report average results in table
-    avg_table = [["Average", f"{np.mean(ap_score)*100:.2f}"]]
-    headers = ["", "Average Precision"]
+    # Calculate AP12 and AP10
+    ap12 = np.mean(ap_score)
 
+    exclude = {"FREE KICK", "GOAL"}
+    ap10_scores = [
+        ap_score[i] for i, class_name in enumerate(classes.keys()) if class_name not in exclude
+    ]
+    ap10 = np.mean(ap10_scores)
+
+    # Report averages
+    avg_table = [
+        ["AP10", f"{ap10*100:.2f}"],
+        ["AP12", f"{ap12*100:.2f}"]
+    ]
+
+    headers = ["Metric", "Average Precision"]
     print(tabulate(avg_table, headers, tablefmt="grid"))
-    
-    print('CORRECTLY FINISHED TRAINING AND INFERENCE')
 
+    print('CORRECTLY FINISHED TRAINING AND INFERENCE')
 
 if __name__ == '__main__':
     main(get_args())

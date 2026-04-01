@@ -10,6 +10,8 @@ import torchvision.transforms as T
 from contextlib import nullcontext
 from tqdm import tqdm
 import torch.nn.functional as F
+from thop import profile
+from fvcore.nn import FlopCountAnalysis
 
 
 #Local imports
@@ -92,9 +94,36 @@ class Model(BaseRGBModel):
                 x[i] = self.standarization(x[i])
             return x
 
-        def print_stats(self):
-            print('Model params:',
-                sum(p.numel() for p in self.parameters()))
+        def print_stats(self, clip_len, device):
+            # Params
+            total_params = sum(p.numel() for p in self.parameters())
+            trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+            print(f"Total params: {total_params:,} ({total_params/1e6:.3f} M)")
+            print(f"Trainable params: {trainable_params:,} ({trainable_params/1e6:.3f} M)")
+
+            # extracted frames are 398x224 (W x H)
+            dummy = torch.randn(1, clip_len, 3, 224, 398).to(device)
+            was_training = self.training
+            self.eval()
+
+            # MACs
+            try:
+                macs, _ = profile(self, inputs=(dummy,), verbose=False)
+                print(f"MACs: {macs/1e9:.3f} G")
+            except Exception as e:
+                print(f"THOP failed: {e}")
+            
+            # FLOPs
+            try:
+                flops = FlopCountAnalysis(self, dummy)
+                flops_total = flops.total()
+                print(f"FLOPs: {flops_total/1e9:.3f} G")
+            except Exception as e:
+                print(f"fvcore failed: {e}")
+
+            if was_training:
+                self.train()
 
     def __init__(self, args=None):
         self.device = "cpu"
@@ -102,11 +131,12 @@ class Model(BaseRGBModel):
             self.device = "cuda"
 
         self._model = Model.Impl(args=args)
-        self._model.print_stats()
         self._args = args
 
         self._model.to(self.device)
         self._num_classes = args.num_classes
+
+        self._model.print_stats(args.clip_len, self.device)
 
     def epoch(self, loader, optimizer=None, scaler=None, lr_scheduler=None):
 
