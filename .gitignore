@@ -1,7 +1,3 @@
-# week5 data directories
-Week5/data/soccernetball/extracted_frames
-Week5/data/soccernetball/SN-BAS-2025
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -216,6 +212,7 @@ __marimo__/
 # Extras
 Data/
 dataset/
+!Week5/dataset/
 datasets/
 
 .python-version
@@ -229,3 +226,8 @@ checkpoints
 results/
 results
 wandb/
+
+# week5 data directories
+Week5/data/soccernetball/extracted_frames
+Week5/data/soccernetball/SN-BAS-2025
+Week5/data/soccernetball/save_data

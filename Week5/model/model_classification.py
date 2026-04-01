@@ -125,7 +125,7 @@ class Model(BaseRGBModel):
                 label = batch['label']
                 label = label.to(self.device).float()
 
-                with torch.cuda.amp.autocast():
+                with torch.amp.autocast(self.device):
                     pred = self._model(frame)
                     loss = F.binary_cross_entropy_with_logits(
                             pred, label)

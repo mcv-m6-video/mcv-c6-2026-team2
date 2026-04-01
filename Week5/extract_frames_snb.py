@@ -1,7 +1,7 @@
 import os
 import argparse
 import cv2
-import moviepy.editor
+import moviepy
 from tqdm import tqdm
 from multiprocessing import Pool
 cv2.setNumThreads(0)
@@ -40,7 +40,7 @@ def get_args():
 
 def get_duration(video_path):
     # Copied from SoccerNet repo
-    return moviepy.editor.VideoFileClip(video_path).duration
+    return moviepy.VideoFileClip(video_path).duration
 
 
 def worker(args):
