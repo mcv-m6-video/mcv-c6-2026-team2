@@ -2,7 +2,7 @@
     "frame_dir": "data/soccernetball/extracted_frames/398x224",
     "save_dir": "data/soccernetball/save_data",
     "labels_dir": "data/soccernetball/SN-BAS-2025",
-    "store_mode": "store",
+    "store_mode": "load",
     "task": "classification",
     "batch_size": 4,
     "clip_len": 50,
