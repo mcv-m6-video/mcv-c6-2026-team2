@@ -150,7 +150,7 @@ class Model(BaseRGBModel):
 
         self._model.eval()
         with torch.no_grad():
-            with torch.cuda.amp.autocast():
+            with torch.amp.autocast(self.device):
                 pred = self._model(seq)
 
             # apply sigmoid
