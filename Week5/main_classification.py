@@ -50,6 +50,9 @@ def update_args(args, config):
     args.device = config['device']
     args.num_workers = config['num_workers']
 
+    # Optional
+    args.patience = config.get('patience', None)
+
     return args
 
 def get_lr_scheduler(args, optimizer, num_steps_per_epoch):
@@ -119,6 +122,7 @@ def main(args):
         losses = []
         best_criterion = float('inf')
         epoch = 0
+        epochs_no_improve = 0
 
         print('START TRAINING EPOCHS')
         for epoch in range(epoch, num_epochs):
@@ -133,6 +137,9 @@ def main(args):
             if val_loss < best_criterion:
                 best_criterion = val_loss
                 better = True
+                epochs_no_improve = 0 
+            else:
+                epochs_no_improve += 1
             
             #Printing info epoch
             print('[Epoch {}] Train loss: {:0.5f} Val loss: {:0.5f}'.format(
@@ -150,6 +157,11 @@ def main(args):
 
                 if better:
                     torch.save( model.state_dict(), os.path.join(ckpt_dir, 'checkpoint_best.pt') )
+
+            if args.patience is not None:
+                if epochs_no_improve >= args.patience:
+                    print(f"Early stopping triggered after {epoch} epochs")
+                    break
 
     print('START INFERENCE')
     model.load(torch.load(os.path.join(ckpt_dir, 'checkpoint_best.pt')))
