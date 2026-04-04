@@ -19,8 +19,7 @@ from tabulate import tabulate
 from util.io import load_json, store_json
 from util.eval_classification import evaluate
 from dataset.datasets import get_datasets
-from model.model_classification import Model
-
+from model import get_model
 
 def get_args():
     #Basic arguments
@@ -31,6 +30,7 @@ def get_args():
 
 def update_args(args, config):
     #Update arguments with config file
+    args.model_type = config.get('model_type', 'baseline')
     args.frame_dir = config['frame_dir']
     args.save_dir = config['save_dir'] + '/' + args.model # + '-' + str(args.seed) -> in case multiple seeds
     args.store_dir = config['save_dir'] + '/' + "splits"
@@ -109,7 +109,7 @@ def main(args):
     )
 
     # Model
-    model = Model(args=args)
+    model = get_model(args=args)
 
     optimizer, scaler = model.get_optimizer({'lr': args.learning_rate})
 

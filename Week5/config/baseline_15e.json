@@ -1,4 +1,5 @@
 {
+    "model_type": "baseline",
     "frame_dir": "data/soccernetball/extracted_frames/398x224",
     "save_dir": "data/soccernetball/save_data",
     "labels_dir": "data/soccernetball/SN-BAS-2025",
@@ -16,5 +17,6 @@
     "warm_up_epochs": 3,
     "only_test": false,
     "device": "cuda",
-    "num_workers": 4
+    "num_workers": 4,
+    "patience": 5
 }

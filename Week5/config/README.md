@@ -2,6 +2,7 @@
 
 Here we describe the different parameters set in the baseline configuration file:
 
+- _model_type:_ Type of model to use.
 - _frame_dir:_ Directory where frames are stored.
 - _save_dir:_ Directory to save checkpoints, dataset information, etc.
 - _labels_dir:_ Directory where dataset labels are stored.
@@ -20,5 +21,6 @@ Here we describe the different parameters set in the baseline configuration file
 - _only_test:_ Boolean indicating whether only inference or training + inference.
 - _device:_ Either "cuda" or "cpu".
 - _num_workers:_ Number of workers.
+- _patience:_ Number of epochs to wait for an improvement before triggering early stopping.
 
 You are free to create new configurations and add the necessary parameters once you modify the baseline. At the very least, you'll need to modify `frame_dir`, `save_dir`, and `labels_dir` as they are set to work in our own computation servers. 
