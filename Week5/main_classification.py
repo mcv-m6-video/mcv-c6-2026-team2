@@ -20,10 +20,10 @@ from util.io import load_json, store_json
 from util.eval_classification import evaluate
 from dataset.datasets import get_datasets
 from model.model_classification import Model
+from model import get_model
 
 import wandb
 import yaml
-
 
 def get_args():
     #Basic arguments
@@ -31,10 +31,18 @@ def get_args():
     parser.add_argument('--model', type=str, required=True)
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--sweep', type=str, default=None)
+    parser.add_argument(
+        '--feature_arch',
+        type=str,
+        default=None,
+        choices=['r3d_18', 'r2plus1d_18', 'x3d_s', 'x3d_m'],
+        help='Override the feature backbone from the config file.'
+    )
     return parser.parse_args()
 
 def update_args(args, config):
     #Update arguments with config file
+    args.model_type = config.get('model_type', 'baseline')
     args.frame_dir = config['frame_dir']
     args.save_dir = config['save_dir'] + '/' + args.model # + '-' + str(args.seed) -> in case multiple seeds
     args.store_dir = config['save_dir'] + '/' + "splits"
@@ -47,7 +55,8 @@ def update_args(args, config):
     args.overlap = config['overlap']
     args.dataset = config['dataset']
     args.epoch_num_frames = config['epoch_num_frames']
-    args.feature_arch = config['feature_arch']
+    config_feature_arch = config['feature_arch']
+    args.feature_arch = args.feature_arch or config_feature_arch
     args.learning_rate = config['learning_rate']
     args.num_classes = config['num_classes']
     args.num_epochs = config['num_epochs']
@@ -56,6 +65,11 @@ def update_args(args, config):
     args.only_test = config['only_test']
     args.device = config['device']
     args.num_workers = config['num_workers']
+    args.pretrained = config.get('pretrained', False)
+
+    # Optional
+    args.patience = config.get('patience', None)
+    args.loss_type = config.get('loss_type', 'bce')
 
     return args
 
@@ -124,7 +138,7 @@ def main(args):
     )
 
     # Model
-    model = Model(args=args, run=run)
+    model = get_model(args=args, run=run)
 
     optimizer, scaler = model.get_optimizer({'lr': args.learning_rate})
 
@@ -138,12 +152,10 @@ def main(args):
         best_criterion = float('inf')
         best_epoch = -1
         epoch = 0
-        estopping = 0
+        epochs_no_improve = 0
 
         print('START TRAINING EPOCHS')
         for epoch in range(epoch, num_epochs):
-            estopping += 1
-
             train_loss = model.epoch(
                 train_loader, optimizer, scaler,
                 lr_scheduler=lr_scheduler)
@@ -155,7 +167,9 @@ def main(args):
                 best_criterion = val_loss
                 best_epoch = epoch
                 better = True
-                estopping = 0
+                epochs_no_improve = 0 
+            else:
+                epochs_no_improve += 1
             
             #Printing info epoch
             print('[Epoch {}] Train loss: {:0.5f} Val loss: {:0.5f}'.format(
@@ -179,10 +193,12 @@ def main(args):
 
                 if better:
                     torch.save( model.state_dict(), os.path.join(ckpt_dir, 'checkpoint_best.pt') )
-            
-            if estopping >= args.patience:
-                break
 
+            if args.patience is not None:
+                if epochs_no_improve >= args.patience:
+                    print(f"Early stopping triggered after {epoch} epochs")
+                    break
+        
         if args.sweep is not None:
             run.summary.update({
                 "best_val_loss": best_criterion,

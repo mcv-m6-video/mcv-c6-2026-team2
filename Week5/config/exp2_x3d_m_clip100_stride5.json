@@ -1,0 +1,23 @@
+{
+    "model_type": "3dcnn",
+    "frame_dir": "/DATA/home/jgarcia/SpectralSegmentation/data/SoccerNet/SN-BAS-2025/extracted_frames/398x224/398x224",
+    "save_dir": "/DATA/home/jgarcia/SpectralSegmentation/data/SoccerNet/save_data",
+    "labels_dir": "/DATA/home/jgarcia/SpectralSegmentation/data/SoccerNet/SN-BAS-2025",
+    "store_mode": "load",
+    "task": "classification",
+    "batch_size": 4,
+    "clip_len": 100,
+    "stride": 5,
+    "dataset": "soccernetball",
+    "epoch_num_frames": 500000,
+    "feature_arch": "x3d_m",
+    "pretrained": true,
+    "learning_rate": 0.0008,
+    "num_classes": 12,
+    "num_epochs": 35,
+    "warm_up_epochs": 3,
+    "only_test": false,
+    "device": "cuda",
+    "num_workers": 4,
+    "patience": 3
+}

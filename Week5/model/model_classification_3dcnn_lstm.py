@@ -1,5 +1,5 @@
 """
-File containing the main model.
+Video-based models (R3D-18 / R(2+1)D-18) + LSTM.
 """
 
 #Standard imports
@@ -7,13 +7,13 @@ import torch
 from torch import nn
 import timm
 import torchvision.transforms as T
-from torchvision.models.video import r3d_18
 from contextlib import nullcontext
 from tqdm import tqdm
 import torch.nn.functional as F
 from thop import profile
 from fvcore.nn import FlopCountAnalysis
-
+from torchvision.models.video import r3d_18, r2plus1d_18
+from torchvision.models.video import R3D_18_Weights, R2Plus1D_18_Weights
 
 #Local imports
 from model.modules import BaseRGBModel, FCLayers, step
@@ -26,69 +26,74 @@ class Model(BaseRGBModel):
             super().__init__()
             self._feature_arch = args.feature_arch
 
-            if self._feature_arch.startswith(('rny002', 'rny004', 'rny008')):
-                features = timm.create_model({
-                    'rny002': 'regnety_002',
-                    'rny004': 'regnety_004',
-                    'rny008': 'regnety_008',
-                }[self._feature_arch.rsplit('_', 1)[0]], pretrained=True)
-                feat_dim = features.head.fc.in_features
-
-                # Remove final classification layer
-                features.head.fc = nn.Identity()
-                self._d = feat_dim
-
-            elif self._feature_arch == 'r3d_18':
-                features = r3d_18(pretrained=True)
+            if self._feature_arch == "r3d_18":
+                weights = R3D_18_Weights.DEFAULT
+                features = r3d_18(weights=weights)
                 feat_dim = features.fc.in_features
                 features.fc = nn.Identity()
-                self._d = feat_dim
-
+ 
+            elif self._feature_arch == "r2plus1d_18":
+                weights = R2Plus1D_18_Weights.DEFAULT
+                features = r2plus1d_18(weights=weights)
+                feat_dim = features.fc.in_features
+                features.fc = nn.Identity()
             else:
-                raise NotImplementedError(args._feature_arch)
+                raise NotImplementedError(self._feature_arch)
 
             self._features = features
+            self._d = feat_dim
+
+            self._lstm = nn.LSTM(
+                input_size=self._d,
+                hidden_size=self._d, 
+                num_layers=1,
+                batch_first=True,
+                bidirectional=True
+            )
+
+            # If bidirectional
+            out_dim = self._d * 2
 
             # MLP for classification
-            self._fc = FCLayers(self._d, args.num_classes)
-
-            #Augmentations and crop
-            self.augmentation = T.Compose([
-                T.RandomApply([T.ColorJitter(hue = 0.2)], p = 0.25),
-                T.RandomApply([T.ColorJitter(saturation = (0.7, 1.2))], p = 0.25),
-                T.RandomApply([T.ColorJitter(brightness = (0.7, 1.2))], p = 0.25),
-                T.RandomApply([T.ColorJitter(contrast = (0.7, 1.2))], p = 0.25),
-                T.RandomApply([T.GaussianBlur(5)], p = 0.25),
-                T.RandomHorizontalFlip(),
-            ])
+            self._fc = FCLayers(out_dim, args.num_classes)
 
             #Standarization
             self.standarization = T.Compose([
-                T.Normalize(mean = (0.485, 0.456, 0.406), std = (0.229, 0.224, 0.225)) #Imagenet mean and std
+                T.Normalize(mean = (0.43216, 0.394666, 0.37645), std = (0.22803, 0.22145, 0.216989)) #Kinetics 400 
             ])
 
         def forward(self, x):
             x = self.normalize(x) #Normalize to 0-1
-            batch_size, clip_len, channels, height, width = x.shape #B, T, C, H, W
+            # x.shape: B, T, C, H, W
 
             if self.training:
                 x = self.augment(x) #augmentation per-batch
 
             x = self.standarize(x) #standarization imagenet stats
                         
-            if self._feature_arch == 'r3d_18':
-                x = x.permute(0, 2, 1, 3, 4)  # B, C, T, H, W
-                im_feat = self._features(x)  # B, D
-            else:
-                im_feat = self._features(
-                    x.view(-1, channels, height, width)
-                ).reshape(batch_size, clip_len, self._d) #B, T, D
+            # torchvision video models expect [B, C, T, H, W]
+            x = x.permute(0, 2, 1, 3, 4)
 
-                #Max pooling
-                im_feat = torch.max(im_feat, dim=1)[0] #B, D
+            # backbone without pooling
+            x = self._features.stem(x)
+            x = self._features.layer1(x)
+            x = self._features.layer2(x)
+            x = self._features.layer3(x)
+            x = self._features.layer4(x)
+            # x: [B, D, T', H', W']
 
-            #MLP
-            im_feat = self._fc(im_feat) #B, num_classes
+            # Spatial pooling
+            x = x.mean(dim=[3, 4])   # [B, D, T']
+
+            # LSTM expects [B, T', D]
+            x = x.permute(0, 2, 1)   # [B, T', D]
+
+            x, _ = self._lstm(x)     # [B, T', 2D] if bidirectional=True
+
+            x = x.mean(dim=1)        # [B, 2D]
+
+            # MLP
+            im_feat = self._fc(x) #B, num_classes
 
             return im_feat 
         
@@ -96,8 +101,38 @@ class Model(BaseRGBModel):
             return x / 255.
         
         def augment(self, x):
-            for i in range(x.shape[0]):
-                x[i] = self.augmentation(x[i])
+            """
+            Apply temporally-consistent augmentations.
+            x: [B, T, C, H, W]
+            Same transform parameters are applied to all frames in a clip.
+            """
+            B = x.size(0)
+
+            for b in range(B):
+                clip = x[b]
+
+                # Flip
+                if torch.rand(1) < 0.5:
+                    clip = torch.flip(clip, dims=[3])
+
+                # Color jitter (probabilístico)
+                if torch.rand(1) < 0.25:
+                    brightness = torch.empty(1).uniform_(0.7, 1.2).item()
+                    contrast = torch.empty(1).uniform_(0.7, 1.2).item()
+                    saturation = torch.empty(1).uniform_(0.7, 1.2).item()
+                    hue = torch.empty(1).uniform_(-0.2, 0.2).item()
+
+                    clip = T.functional.adjust_brightness(clip, brightness)
+                    clip = T.functional.adjust_contrast(clip, contrast)
+                    clip = T.functional.adjust_saturation(clip, saturation)
+                    clip = T.functional.adjust_hue(clip, hue)
+
+                # Blur
+                if torch.rand(1) < 0.25:
+                    clip = T.functional.gaussian_blur(clip, kernel_size=5)
+
+                x[b] = clip
+
             return x
 
         def standarize(self, x):
@@ -105,7 +140,7 @@ class Model(BaseRGBModel):
                 x[i] = self.standarization(x[i])
             return x
 
-        def print_stats(self, clip_len, device, run=None):
+        def print_stats(self, clip_len, device):
             # Params
             total_params = sum(p.numel() for p in self.parameters())
             trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
@@ -133,17 +168,10 @@ class Model(BaseRGBModel):
             except Exception as e:
                 print(f"fvcore failed: {e}")
 
-            if run is not None:
-                run.summary.update({
-                    "total_params": total_params,
-                    "trainable_params": trainable_params,
-                    "MACs": macs / 1e9,
-                    "FLOPs": flops_total / 1e9
-                })
             if was_training:
                 self.train()
 
-    def __init__(self, args=None, run=None):
+    def __init__(self, args=None):
         self.device = "cpu"
         if torch.cuda.is_available() and ("device" in args) and (args.device == "cuda"):
             self.device = "cuda"
@@ -154,7 +182,7 @@ class Model(BaseRGBModel):
         self._model.to(self.device)
         self._num_classes = args.num_classes
 
-        self._model.print_stats(args.clip_len, self.device, run=run)
+        self._model.print_stats(args.clip_len, self.device)
 
     def epoch(self, loader, optimizer=None, scaler=None, lr_scheduler=None):
 
@@ -167,7 +195,6 @@ class Model(BaseRGBModel):
             self._model.train()
 
         epoch_loss = 0.
-        loss_type = getattr(self._args, 'loss_type', 'bce')
         with torch.no_grad() if optimizer is None else nullcontext():
             for batch_idx, batch in enumerate(tqdm(loader)):
                 frame = batch['frame'].to(self.device).float()
@@ -176,15 +203,8 @@ class Model(BaseRGBModel):
 
                 with torch.amp.autocast(self.device):
                     pred = self._model(frame)
-                    if loss_type == 'bce':
-                        loss = F.binary_cross_entropy_with_logits(
-                                pred, label)
-                    elif loss_type == 'focal':
-                        pt = torch.sigmoid(pred)
-                        loss = - (1 - pt)**2 * label * torch.log(pt + 1e-8) - pt**2 * (1 - label) * torch.log(1 - pt + 1e-8)
-                        loss = loss.mean()
-                    else:
-                        raise NotImplementedError(loss_type)
+                    loss = F.binary_cross_entropy_with_logits(
+                            pred, label)
 
                 if optimizer is not None:
                     step(optimizer, scaler, loss,

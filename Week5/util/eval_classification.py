@@ -10,19 +10,20 @@ from sklearn.metrics import average_precision_score
 
 #Constants
 INFERENCE_BATCH_SIZE = 4
+INFERENCE_NUM_WORKERS = 2
 
-def evaluate(model, dataset, batch_size=INFERENCE_BATCH_SIZE):
+def evaluate(model, dataset, batch_size=INFERENCE_BATCH_SIZE, num_workers=INFERENCE_NUM_WORKERS):
     # Initialize scores and labels
     scores = []
     labels = []
     # Perform inference
     for clip in tqdm(DataLoader(
-            dataset, num_workers=batch_size * 2, pin_memory=True,
+            dataset, num_workers=num_workers, pin_memory=True,
             batch_size=batch_size
     )):
         # Batched by dataloader
         batch_pred_scores = model.predict(clip['frame'])
-        label = clip['label'].numpy()
+        label = clip['label'].cpu().numpy()
         # Store scores and labels
         scores.append(batch_pred_scores)
         labels.append(label)
