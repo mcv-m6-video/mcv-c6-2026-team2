@@ -1,0 +1,20 @@
+program: main_classification.py
+method: grid
+name: overlap_sweep
+command:
+  - .venv/bin/python
+  - ${program}
+  - --model
+  - baseline_15e
+  - --sweep
+  - config/overlap_sweep.yaml
+metric:
+  goal: minimize
+  name: best_val_loss
+parameters:
+  clip_len:
+    values: [50]
+  stride:
+    values: [2]
+  overlap:
+    values: [0.0, 0.2, 0.4, 0.6, 0.8, 0.9]

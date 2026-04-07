@@ -10,6 +10,7 @@ Here we describe the different parameters set in the baseline configuration file
 - _batch_size:_ Batch size.
 - _clip_len:_ Length of the clips in number of frames.
 - _stride:_ Sampling one out of every _stride_ frames when reading from _frame_dir_.
+- _overlap:_ Percentage of overlapping frames in contiguous clips.
 - _dataset:_ Name of the dataset ('soccernetball').
 - _epoch_num_frames:_ Number of frames used per epoch.
 - _feature_arch:_ Feature extractor architecture (e.g. 'rny002_gsf', 'rny004', or 'rny008_gsf' from `timm` library). Check `model/model_classification.py` to see accepted models at this points. Of course, you can choose to change them to other models or use your own.
@@ -17,6 +18,7 @@ Here we describe the different parameters set in the baseline configuration file
 - _num_classes:_ Number of classes for the current dataset.
 - _num_epochs:_ Number of epochs for training.
 - _warm_up_epochs:_ Number of warm-up epochs.
+- _patience:_ Patience epochs to trigger early stopping.
 - _only_test:_ Boolean indicating whether only inference or training + inference.
 - _device:_ Either "cuda" or "cpu".
 - _num_workers:_ Number of workers.

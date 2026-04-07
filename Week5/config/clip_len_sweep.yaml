@@ -1,0 +1,20 @@
+program: main_classification.py
+method: grid
+name: clip_len_sweep
+command:
+  - .venv/bin/python
+  - ${program}
+  - --model
+  - baseline_15e
+  - --sweep
+  - config/clip_len_sweep.yaml
+metric:
+  goal: minimize
+  name: best_val_loss
+parameters:
+  clip_len:
+    values: [100]
+  stride:
+    values: [2]
+  overlap:
+    values: [0.9]

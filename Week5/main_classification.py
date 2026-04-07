@@ -21,12 +21,16 @@ from util.eval_classification import evaluate
 from dataset.datasets import get_datasets
 from model.model_classification import Model
 
+import wandb
+import yaml
+
 
 def get_args():
     #Basic arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', type=str, required=True)
     parser.add_argument('--seed', type=int, default=1)
+    parser.add_argument('--sweep', type=str, default=None)
     return parser.parse_args()
 
 def update_args(args, config):
@@ -39,6 +43,8 @@ def update_args(args, config):
     args.task = config['task']
     args.batch_size = config['batch_size']
     args.clip_len = config['clip_len']
+    args.stride = config['stride']
+    args.overlap = config['overlap']
     args.dataset = config['dataset']
     args.epoch_num_frames = config['epoch_num_frames']
     args.feature_arch = config['feature_arch']
@@ -46,6 +52,7 @@ def update_args(args, config):
     args.num_classes = config['num_classes']
     args.num_epochs = config['num_epochs']
     args.warm_up_epochs = config['warm_up_epochs']
+    args.patience = config['patience']
     args.only_test = config['only_test']
     args.device = config['device']
     args.num_workers = config['num_workers']
@@ -74,6 +81,16 @@ def main(args):
     config = load_json(config_path)
     args = update_args(args, config)
 
+    # WandB Sweep
+    if args.sweep is not None:
+        with open(args.sweep, "r") as f:
+            sweep_config = yaml.load(f, Loader=yaml.FullLoader)
+        run = wandb.init(config=sweep_config)
+        args.clip_len = run.config['clip_len']
+        args.stride = run.config['stride']
+        args.overlap = run.config['overlap']
+        print(args.sweep)
+
     # Directory for storing / reading model checkpoints
     ckpt_dir = os.path.join(args.save_dir, 'checkpoints')
     os.makedirs(ckpt_dir, exist_ok=True)
@@ -82,8 +99,9 @@ def main(args):
     classes, train_data, val_data, test_data = get_datasets(args)
 
     if args.store_mode == 'store':
-        print('Datasets have been stored correctly! Re-run changing "mode" to "load" in the config JSON.')
-        sys.exit('Datasets have correctly been stored! Stop training here and rerun with load mode.')
+        # print('Datasets have been stored correctly! Re-run changing "mode" to "load" in the config JSON.')
+        # sys.exit('Datasets have correctly been stored! Stop training here and rerun with load mode.')
+        print('Datasets have been stored correctly! Continuing run. Next time re-run changing "mode" to "load" in the config JSON.')
     else:
         print('Datasets have been loaded from previous versions correctly!')
 
@@ -106,7 +124,7 @@ def main(args):
     )
 
     # Model
-    model = Model(args=args)
+    model = Model(args=args, run=run)
 
     optimizer, scaler = model.get_optimizer({'lr': args.learning_rate})
 
@@ -118,10 +136,13 @@ def main(args):
         
         losses = []
         best_criterion = float('inf')
+        best_epoch = -1
         epoch = 0
+        estopping = 0
 
         print('START TRAINING EPOCHS')
         for epoch in range(epoch, num_epochs):
+            estopping += 1
 
             train_loss = model.epoch(
                 train_loader, optimizer, scaler,
@@ -132,7 +153,9 @@ def main(args):
             better = False
             if val_loss < best_criterion:
                 best_criterion = val_loss
+                best_epoch = epoch
                 better = True
+                estopping = 0
             
             #Printing info epoch
             print('[Epoch {}] Train loss: {:0.5f} Val loss: {:0.5f}'.format(
@@ -143,6 +166,12 @@ def main(args):
             losses.append({
                 'epoch': epoch, 'train': train_loss, 'val': val_loss
             })
+            
+            if args.sweep is not None:
+                run.log({
+                    "train_loss": train_loss,
+                    "val_loss": val_loss
+                })
 
             if args.save_dir is not None:
                 os.makedirs(args.save_dir, exist_ok=True)
@@ -150,6 +179,15 @@ def main(args):
 
                 if better:
                     torch.save( model.state_dict(), os.path.join(ckpt_dir, 'checkpoint_best.pt') )
+            
+            if estopping >= args.patience:
+                break
+
+        if args.sweep is not None:
+            run.summary.update({
+                "best_val_loss": best_criterion,
+                "best_epoch": best_epoch
+            })
 
     print('START INFERENCE')
     model.load(torch.load(os.path.join(ckpt_dir, 'checkpoint_best.pt')))
@@ -182,6 +220,29 @@ def main(args):
 
     headers = ["Metric", "Average Precision"]
     print(tabulate(avg_table, headers, tablefmt="grid"))
+
+    # Save to files
+    with open(os.path.join(args.save_dir, "results.txt"), "w") as f:
+        content1 = tabulate(table, headers, tablefmt="grid")
+        content2 = tabulate(avg_table, headers, tablefmt="grid")
+        f.write(content1)
+        f.write("\n")
+        f.write(content2)
+
+    with open(os.path.join(args.save_dir, "results.csv"), "w") as f:
+        table.extend(avg_table)
+        content = tabulate(table, headers, tablefmt="tsv")
+        f.write(content)
+
+    # Log to WandB, just in case, better not use it to make decisions
+    if args.sweep is not None:
+        run.summary.update({
+            "test_"+k: v for k, v in table
+        })
+        # End WandB logging
+        print('WandB Summary')
+        print(run.summary)
+        wandb.finish()
 
     print('CORRECTLY FINISHED TRAINING AND INFERENCE')
 
