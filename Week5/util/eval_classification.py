@@ -10,7 +10,7 @@ from sklearn.metrics import average_precision_score
 
 #Constants
 INFERENCE_BATCH_SIZE = 4
-INFERENCE_NUM_WORKERS = 4
+INFERENCE_NUM_WORKERS = 2
 
 def evaluate(model, dataset, batch_size=INFERENCE_BATCH_SIZE, num_workers=INFERENCE_NUM_WORKERS):
     # Initialize scores and labels
