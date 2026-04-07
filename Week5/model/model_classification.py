@@ -7,6 +7,7 @@ import torch
 from torch import nn
 import timm
 import torchvision.transforms as T
+from torchvision.models.video import r3d_18
 from contextlib import nullcontext
 from tqdm import tqdm
 import torch.nn.functional as F
@@ -35,6 +36,12 @@ class Model(BaseRGBModel):
 
                 # Remove final classification layer
                 features.head.fc = nn.Identity()
+                self._d = feat_dim
+
+            elif self._feature_arch == 'r3d_18':
+                features = r3d_18(pretrained=True)
+                feat_dim = features.fc.in_features
+                features.fc = nn.Identity()
                 self._d = feat_dim
 
             else:
@@ -69,12 +76,16 @@ class Model(BaseRGBModel):
 
             x = self.standarize(x) #standarization imagenet stats
                         
-            im_feat = self._features(
-                x.view(-1, channels, height, width)
-            ).reshape(batch_size, clip_len, self._d) #B, T, D
+            if self._feature_arch == 'r3d_18':
+                x = x.permute(0, 2, 1, 3, 4)  # B, C, T, H, W
+                im_feat = self._features(x)  # B, D
+            else:
+                im_feat = self._features(
+                    x.view(-1, channels, height, width)
+                ).reshape(batch_size, clip_len, self._d) #B, T, D
 
-            #Max pooling
-            im_feat = torch.max(im_feat, dim=1)[0] #B, D
+                #Max pooling
+                im_feat = torch.max(im_feat, dim=1)[0] #B, D
 
             #MLP
             im_feat = self._fc(im_feat) #B, num_classes
@@ -149,6 +160,7 @@ class Model(BaseRGBModel):
             self._model.train()
 
         epoch_loss = 0.
+        loss_type = getattr(self._args, 'loss_type', 'bce')
         with torch.no_grad() if optimizer is None else nullcontext():
             for batch_idx, batch in enumerate(tqdm(loader)):
                 frame = batch['frame'].to(self.device).float()
@@ -157,8 +169,15 @@ class Model(BaseRGBModel):
 
                 with torch.amp.autocast(self.device):
                     pred = self._model(frame)
-                    loss = F.binary_cross_entropy_with_logits(
-                            pred, label)
+                    if loss_type == 'bce':
+                        loss = F.binary_cross_entropy_with_logits(
+                                pred, label)
+                    elif loss_type == 'focal':
+                        pt = torch.sigmoid(pred)
+                        loss = - (1 - pt)**2 * label * torch.log(pt + 1e-8) - pt**2 * (1 - label) * torch.log(1 - pt + 1e-8)
+                        loss = loss.mean()
+                    else:
+                        raise NotImplementedError(loss_type)
 
                 if optimizer is not None:
                     step(optimizer, scaler, loss,

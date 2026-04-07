@@ -1,5 +1,5 @@
 """
-Video-based models (R3D-18 / R(2+1)D-18).
+Video-based models (R3D-18 / R(2+1)D-18 / X3D).
 """
 
 #Standard imports
@@ -14,6 +14,7 @@ from thop import profile
 from fvcore.nn import FlopCountAnalysis
 from torchvision.models.video import r3d_18, r2plus1d_18
 from torchvision.models.video import R3D_18_Weights, R2Plus1D_18_Weights
+from pytorchvideo.models.hub import x3d_m, x3d_s
 
 #Local imports
 from model.modules import BaseRGBModel, FCLayers, step
@@ -25,6 +26,7 @@ class Model(BaseRGBModel):
         def __init__(self, args = None):
             super().__init__()
             self._feature_arch = args.feature_arch
+            self._pretrained = getattr(args, "pretrained", False)
 
             if self._feature_arch == "r3d_18":
                 weights = R3D_18_Weights.DEFAULT
@@ -37,14 +39,28 @@ class Model(BaseRGBModel):
                 features = r2plus1d_18(weights=weights)
                 feat_dim = features.fc.in_features
                 features.fc = nn.Identity()
+            elif self._feature_arch in {"x3d_s", "x3d_m"}:
+                x3d_ctor = {
+                    "x3d_s": x3d_s,
+                    "x3d_m": x3d_m,
+                }[self._feature_arch]
+                features = x3d_ctor(pretrained=self._pretrained)
+                feat_dim = features.blocks[-1].proj.in_features
+
+                # Keep the projected X3D head, but swap its fixed pool for adaptive
+                # pooling so clip length and frame size are not hard-coded.
+                features.blocks[-1].pool.pool = nn.AdaptiveAvgPool3d((1, 1, 1))
+                features.blocks[-1].proj = nn.Linear(feat_dim, args.num_classes)
+                features.blocks[-1].activation = None
             else:
                 raise NotImplementedError(self._feature_arch)
 
             self._features = features
             self._d = feat_dim
 
-            # MLP for classification
-            self._fc = FCLayers(self._d, args.num_classes)
+            # The torchvision backbones output features, while X3D can emit logits
+            # directly once its head is replaced.
+            self._fc = None if self._feature_arch.startswith("x3d_") else FCLayers(self._d, args.num_classes)
 
             #Standarization
             self.standarization = T.Compose([
@@ -64,10 +80,10 @@ class Model(BaseRGBModel):
             x = x.permute(0, 2, 1, 3, 4)
 
             # Video backbone processes the whole clip
-            im_feat = self._features(x)   # [B, D]
+            im_feat = self._features(x)
 
-            # MLP
-            im_feat = self._fc(im_feat) #B, num_classes
+            if self._fc is not None:
+                im_feat = self._fc(im_feat) #B, num_classes
 
             return im_feat 
         

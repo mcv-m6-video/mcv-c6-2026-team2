@@ -80,6 +80,12 @@ class ActionSpotDataset(Dataset):
             self._dataset_len = dataset_len
 
         self._total_len = len(self._frame_paths)
+        if self._total_len == 0:
+            raise ValueError(
+                'No clips were found for split "{}". Check that frame_dir "{}" points '
+                'to the extracted frames root and regenerate cached splits in store '
+                'mode if needed.'.format(self._split, frame_dir)
+            )
 
     def _store_clips(self):
         #Initialize frame paths list
