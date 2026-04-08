@@ -1,17 +1,33 @@
-# Week5 Guide
+# Week 5: Ball Action Classification
 
-This document explains how the `Week5` folder is organized, how the training and inference pipeline works, how to run experiments, and what the main configuration options mean.
+This document explains how the `Week5` folder is organized, how the training and inference pipeline works, how to run experiments, and what the main configuration options mean, highlighting our best-performing setup.
+
+## Best Model Checkpoint
+
+Our best model checkpoint can be found [here](https://drive.google.com/drive/folders/1gEt6xjN-Hfl7A96zR3-zubQeJDtMuOa7?usp=sharing).
+
+> Note: The checkpoint is hosted externally due to GitHub file size limitations (>100MB).
+
+### Best Configuration
+The best results were obtained using the following setup:
+
+- **Backbone:** R3D-18 (3D ResNet-18)
+- **Clip length:** 100 frames
+- **Temporal stride:** 5
+
+This configuration improved temporal modeling by capturing longer motion patterns compared to shorter clips used in the baseline.
+
 
 ## Folder organization
 
 ```text
 Week5/
-├── config/           Experiment JSON files and config documentation
-├── data/             Dataset split files and dataset-specific README
-├── dataset/          Clip sampling and dataset loading code
-├── model/            Model definitions and model registry
-├── notebooks/        Dataset download and plotting notebooks
-├── util/             IO, evaluation, and helper functions
+├── config/            # Experiment JSON files and config documentation
+├── data/              # Dataset split files and dataset-specific README
+├── dataset/           # Clip sampling and dataset loading code
+├── model/             # Model definitions and model registry
+├── notebooks/         # Dataset download and plotting notebooks
+├── util/              # IO, evaluation, and helper functions
 ├── main_classification.py
 ├── inference.py
 ├── extract_frames_snb.py
@@ -39,7 +55,7 @@ Week5/
 Install dependencies from inside `Week5`:
 
 ```bash
-cd /DATA/home/jgarcia/SpectralSegmentation/mcv-c6-2026-team2/Week5
+cd Week5
 pip install -r requirements.txt
 ```
 
@@ -75,7 +91,7 @@ The training flow is:
 ### Train and evaluate an experiment
 
 ```bash
-cd /DATA/home/jgarcia/SpectralSegmentation/mcv-c6-2026-team2/Week5
+cd Week5
 python3 main_classification.py --model <config_name>
 ```
 
@@ -88,9 +104,9 @@ python3 main_classification.py --model baseline_15e
 ### Run inference from a saved checkpoint
 
 ```bash
-cd /DATA/home/jgarcia/SpectralSegmentation/mcv-c6-2026-team2/Week5
+cd Week5
 python3 inference.py \
-  --model exp2_x3d_clip100_stride5 \
+  --model baseline_15e \
   --checkpoint /path/to/checkpoint_best.pt
 ```
 
@@ -98,7 +114,7 @@ python3 inference.py \
 
 ```bash
 python3 inference.py \
-  --model exp2_x3d_clip100_stride5 \
+  --model baseline_15e \
   --checkpoint /path/to/checkpoint_best.pt \
   --save_qualitative \
   --num_qualitative 10 \

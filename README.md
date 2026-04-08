@@ -50,3 +50,8 @@ In Week 4 of Module C6, we extend the tracking problem from a single-camera setu
 
 For a detailed explanation of the tasks, implementation steps, and experiments refer to the dedicated [Week 4 README](./Week4/README.md).
 
+## Week 5: Ball Action Classification
+
+In Week 5 of Module C6, we begin Project 2, focusing on Ball Action Classification (BAC) using the SoccerNet dataset. The objective of this task is to build and improve a multi-label video classification model capable of recognizing different ball-related actions in soccer matches. This serves as a first step toward the final goal of action spotting.
+
+For a detailed explanation of the tasks, implementation steps, and experiments refer to the dedicated [Week 5 README](./Week5/README.md).
