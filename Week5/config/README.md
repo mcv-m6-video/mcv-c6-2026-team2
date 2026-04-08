@@ -23,6 +23,7 @@ Here we describe the different parameters set in the baseline configuration file
 - _only_test:_ Boolean indicating whether only inference or training + inference.
 - _device:_ Either "cuda" or "cpu".
 - _num_workers:_ Number of workers.
-- _patience:_ Number of epochs to wait for an improvement before triggering early stopping.
+- _pretrained:_ optional flag used by some 3D backbones.
+- _loss_type:_ optional loss selector. This codebase uses `bce` and `focal`.
 
 You are free to create new configurations and add the necessary parameters once you modify the baseline. At the very least, you'll need to modify `frame_dir`, `save_dir`, and `labels_dir` as they are set to work in our own computation servers. 
