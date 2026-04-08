@@ -52,7 +52,7 @@ def update_args(args, config):
     args.batch_size = config['batch_size']
     args.clip_len = config['clip_len']
     args.stride = config['stride']
-    args.overlap = config['overlap']
+    args.overlap = config.get('overlap', 0.9)
     args.dataset = config['dataset']
     args.epoch_num_frames = config['epoch_num_frames']
     config_feature_arch = config['feature_arch']
@@ -96,6 +96,7 @@ def main(args):
     args = update_args(args, config)
 
     # WandB Sweep
+    run = None
     if args.sweep is not None:
         with open(args.sweep, "r") as f:
             sweep_config = yaml.load(f, Loader=yaml.FullLoader)

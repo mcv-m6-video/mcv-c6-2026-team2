@@ -1,8 +1,8 @@
 {
     "model_type": "3dcnn",
-    "frame_dir": "/DATA/home/jgarcia/SpectralSegmentation/data/SoccerNet/SN-BAS-2025/extracted_frames/398x224/398x224",
-    "save_dir": "/DATA/home/jgarcia/SpectralSegmentation/data/SoccerNet/save_data",
-    "labels_dir": "/DATA/home/jgarcia/SpectralSegmentation/data/SoccerNet/SN-BAS-2025",
+    "frame_dir": "data/soccernetball/extracted_frames/398x224",
+    "save_dir": "data/soccernetball/save_data",
+    "labels_dir": "data/soccernetball/SN-BAS-2025",
     "store_mode": "load",
     "task": "classification",
     "batch_size": 4,
