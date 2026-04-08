@@ -174,23 +174,20 @@ def save_qualitative_examples(model, dataset, classes, out_dir,
     os.makedirs(out_dir, exist_ok=True)
 
     saved = 0
-    attempts = 0
-    max_attempts = max(num_examples * 10, 50)
 
     print('START SAVING QUALITATIVE EXAMPLES')
 
-    while saved < num_examples and attempts < max_attempts:
-        sample = dataset[0]   # da igual el índice: tu dataset devuelve uno aleatorio
-        attempts += 1
+    for i in range(len(dataset)):
+        sample = dataset[i]
 
-        frames = sample['frame']              # [T, C, H, W]
-        gt = sample['label']                  # [C]
+        frames = sample['frame']
+        gt = sample['label']
         contains_event = sample['contains_event']
 
         if only_event_clips and contains_event == 0:
             continue
 
-        pred_scores = model.predict(frames)[0]   # [C]
+        pred_scores = model.predict(frames)[0]
 
         gt_text = get_gt_text(gt, idx_to_class)
         pred_text, best_text = get_pred_texts(
@@ -217,6 +214,9 @@ def save_qualitative_examples(model, dataset, classes, out_dir,
 
         print(f'Saved {saved + 1}/{num_examples}: {out_path}')
         saved += 1
+
+        if saved >= num_examples:
+            break
 
     print('FINISHED SAVING QUALITATIVE EXAMPLES')
 
