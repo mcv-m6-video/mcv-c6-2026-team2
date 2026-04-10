@@ -213,6 +213,7 @@ __marimo__/
 Data/
 dataset/
 !Week5/dataset/
+!Week6/dataset/
 datasets/
 
 .python-version
