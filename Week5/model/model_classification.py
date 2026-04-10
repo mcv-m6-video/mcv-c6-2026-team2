@@ -105,7 +105,7 @@ class Model(BaseRGBModel):
                 x[i] = self.standarization(x[i])
             return x
 
-        def print_stats(self, clip_len, device):
+        def print_stats(self, clip_len, device, run=None):
             # Params
             total_params = sum(p.numel() for p in self.parameters())
             trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
@@ -133,10 +133,17 @@ class Model(BaseRGBModel):
             except Exception as e:
                 print(f"fvcore failed: {e}")
 
+            if run is not None:
+                run.summary.update({
+                    "total_params": total_params,
+                    "trainable_params": trainable_params,
+                    "MACs": macs / 1e9,
+                    "FLOPs": flops_total / 1e9
+                })
             if was_training:
                 self.train()
 
-    def __init__(self, args=None):
+    def __init__(self, args=None, run=None):
         self.device = "cpu"
         if torch.cuda.is_available() and ("device" in args) and (args.device == "cuda"):
             self.device = "cuda"
@@ -147,7 +154,7 @@ class Model(BaseRGBModel):
         self._model.to(self.device)
         self._num_classes = args.num_classes
 
-        self._model.print_stats(args.clip_len, self.device)
+        self._model.print_stats(args.clip_len, self.device, run=run)
 
     def epoch(self, loader, optimizer=None, scaler=None, lr_scheduler=None):
 

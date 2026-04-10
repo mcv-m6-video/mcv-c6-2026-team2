@@ -12,5 +12,9 @@ tqdm==4.66.4
 moviepy==1.0.3
 huggingface_hub[cli]==0.29.3
 setuptools==80.10.2
+seaborn
+ipykernel
+wandb
+pandas
 pytorchvideo
 thop

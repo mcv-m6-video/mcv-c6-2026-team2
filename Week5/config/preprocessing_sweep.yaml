@@ -1,0 +1,21 @@
+program: main_classification.py
+method: bayes
+name: sweep
+command:
+  - .venv/bin/python
+  - ${program}
+  - --model
+  - baseline_15e
+  - --sweep
+  - config/preprocessing_sweep.yaml
+metric:
+  goal: minimize
+  name: best_val_loss
+parameters:
+  clip_len:
+    values: [100, 75, 50, 33, 25, 20]
+  stride:
+    values: [1, 2, 3, 4, 5]
+  overlap:
+    min: 0.0
+    max: 0.9

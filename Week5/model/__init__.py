@@ -4,10 +4,10 @@ from .model_classification_lstm_attention import Model as LSTMAttnModel
 from .model_classification_3dcnn import Model as Model3DCnn
 from .model_classification_3dcnn_lstm import Model as Model3DCnnLSTM
 
-def get_model(args):
+def get_model(args, run=None):
     if args.model_type == "baseline":
         print("Using model: BASELINE")
-        return BaselineModel(args)
+        return BaselineModel(args, run=run)
     elif args.model_type == "lstm":
         print("Using model: LSTM")
         return LSTMModel(args)

@@ -127,6 +127,7 @@ python3 inference.py \
 
 - `--model`: required. Name of the config file without `.json`.
 - `--seed`: random seed. Default: `1`.
+- `--sweep`: yaml file for WandB sweep configuration. Default: `None`.
 - `--feature_arch`: optional override for the config backbone. Supported values: `r3d_18`, `r2plus1d_18`, `x3d_s`, `x3d_m`.
 
 ### `inference.py`
@@ -154,6 +155,7 @@ Each experiment is described by a JSON file inside `config/`. The most important
 - `batch_size`: batch size.
 - `clip_len`: number of frames per clip.
 - `stride`: sample one frame every `stride` frames.
+- `overlap`: Percentage of overlapping frames in contiguous clips.
 - `dataset`: dataset name, usually `soccernetball`.
 - `epoch_num_frames`: number of frames used to define one epoch.
 - `feature_arch`: backbone architecture.
@@ -161,10 +163,10 @@ Each experiment is described by a JSON file inside `config/`. The most important
 - `num_classes`: number of classes.
 - `num_epochs`: maximum number of epochs.
 - `warm_up_epochs`: number of warmup epochs before cosine decay.
+- `patience`: optional early stopping patience.
 - `only_test`: if `true`, skip training and only run evaluation.
 - `device`: `cuda` or `cpu`.
 - `num_workers`: dataloader workers.
-- `patience`: optional early stopping patience.
 - `pretrained`: optional flag used by some 3D backbones.
 - `loss_type`: optional loss selector. This codebase uses `bce` and `focal`.
 
