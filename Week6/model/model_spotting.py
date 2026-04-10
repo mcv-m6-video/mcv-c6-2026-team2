@@ -143,7 +143,7 @@ class Model(BaseRGBModel):
                 label = batch['label']
                 label = label.to(self.device).long()
 
-                with torch.cuda.amp.autocast():
+                with torch.amp.autocast(self.device):
                     pred = self._model(frame)
                     pred = pred.view(-1, self._num_classes + 1) # B*T, num_classes
                     label = label.view(-1) # B*T
@@ -170,10 +170,10 @@ class Model(BaseRGBModel):
 
         self._model.eval()
         with torch.no_grad():
-            with torch.cuda.amp.autocast():
-                pred = self._model(seq)
+            with torch.amp.autocast(self.device):
+                logits = self._model(seq)
 
             # apply sigmoid
-            pred = torch.softmax(pred, dim=-1)
+            pred = torch.softmax(logits, dim=-1)
             
-            return pred.cpu().numpy()
+            return pred.cpu().numpy(), logits

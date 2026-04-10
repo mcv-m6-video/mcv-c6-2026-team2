@@ -50,6 +50,7 @@ def update_args(args, config):
     args.only_test = config['only_test']
     args.device = config['device']
     args.num_workers = config['num_workers']
+    args.patience = config['patience']
 
     # Optional
     # args.patience = config.get('patience', None)
@@ -92,8 +93,8 @@ def main(args):
     ckpt_dir = os.path.join(args.save_dir, 'checkpoints')
     os.makedirs(ckpt_dir, exist_ok=True)
 
-    # Get datasets train, validation and test
-    classes, train_data, val_data, test_data = get_datasets(args)
+    # Get datasets train, validation (and validation for map -> Video dataset)
+    classes, train_data, val_data, val_eval_data, test_data = get_datasets(args)
 
     if args.store_mode == 'store':
         print('Datasets have been stored correctly! Re-run changing "mode" to "load" in the config JSON.')
@@ -131,8 +132,10 @@ def main(args):
             args, optimizer, num_steps_per_epoch)
         
         losses = []
-        best_criterion = float('inf')
+        best_ap10 = -float('inf')
+        # best_criterion = float('inf')
         epoch = 0
+        epochs_no_improve = 0
 
         print('START TRAINING EPOCHS')
         for epoch in range(epoch, num_epochs):
@@ -141,21 +144,35 @@ def main(args):
                 train_loader, optimizer, scaler,
                 lr_scheduler=lr_scheduler)
             
-            val_loss = model.epoch(val_loader)
+            # val_loss = model.epoch(val_loader)
+
+            # Validation spotting metrics
+            val_ap12, val_ap_score, val_loss = evaluate(model, val_eval_data, batch_size=args.batch_size, nms_window=5)
+            val_ap10 = compute_ap10(classes, val_ap_score)
 
             better = False
-            if val_loss < best_criterion:
-                best_criterion = val_loss
+            if val_ap10 > best_ap10:
                 better = True
+                best_ap10 = val_ap10
+                epochs_no_improve = 0
+            else:
+                epochs_no_improve += 1
+
+            # better = False
+            # if val_loss < best_criterion:
+            #     best_criterion = val_loss
+            #     better = True
             
             #Printing info epoch
-            print('[Epoch {}] Train loss: {:0.5f} Val loss: {:0.5f}'.format(
-                epoch, train_loss, val_loss))
+            print('[Epoch {}] Train loss: {:0.5f} Val loss: {:0.5f} Val AP10: {:0.2f} Val AP12 {:0.2f}'.format(
+                epoch, train_loss, val_loss, val_ap10 * 100, val_ap12 * 100))
+            # print('[Epoch {}] Train loss: {:0.5f} Val loss: {:0.5f}'.format(
+            #     epoch, train_loss, val_loss))
             if better:
                 print('New best mAP epoch!')
 
             losses.append({
-                'epoch': epoch, 'train': train_loss, 'val': val_loss
+                'epoch': epoch, 'train': train_loss, 'val': val_loss, 'ap10': val_ap10, 'ap12': val_ap12
             })
 
             if args.save_dir is not None:
@@ -165,11 +182,15 @@ def main(args):
                 if better:
                     torch.save( model.state_dict(), os.path.join(ckpt_dir, 'checkpoint_best.pt') )
 
+            if args.patience is not None and epochs_no_improve >= args.patience:
+                print(f"Early stopping triggered after epoch {epoch}")
+                break
+
     print('START INFERENCE')
     model.load(torch.load(os.path.join(ckpt_dir, 'checkpoint_best.pt')))
 
     # Evaluation on test split
-    map_score, ap_score = evaluate(model, test_data, nms_window = 5)
+    map_score, ap_score, _ = evaluate(model, test_data, nms_window = 5)
 
     # Report results per-class in table
     table = []

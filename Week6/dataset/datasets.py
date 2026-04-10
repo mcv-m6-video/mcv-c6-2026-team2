@@ -34,7 +34,12 @@ def get_datasets(args):
     val_data = ActionSpotDataset(
         classes, os.path.join('data', args.dataset, 'val.json'),
         args.frame_dir, args.store_dir, args.store_mode, args.clip_len, dataset_len // 4, **dataset_kwargs)
-    val_data.print_info()     
+    val_data.print_info()   
+
+    val_eval_data = ActionSpotVideoDataset(
+        classes, os.path.join('data', args.dataset, 'val.json'),
+        args.frame_dir, args.clip_len, **dataset_kwargs)
+    val_eval_data.print_info()  
 
     dataset_kwargs['overlap'] = 0
 
@@ -42,4 +47,4 @@ def get_datasets(args):
         args.frame_dir, args.clip_len, **dataset_kwargs)
     test_data.print_info()
         
-    return classes, train_data, val_data, test_data
+    return classes, train_data, val_data, val_eval_data, test_data

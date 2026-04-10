@@ -334,20 +334,35 @@ class ActionSpotVideoDataset(Dataset):
                 has_clip = True
                 self._clips.append((l['video'], i))
             assert has_clip, l
+        
+        self._labels_dict = {}
+        for game in self._games:
+            video = game['video']
+            label_path = os.path.join(self._labels_dir, video, 'Labels-ball.json')
+            self._labels_dict[video] = load_json(label_path)['annotations']
 
     def __len__(self):
         return len(self._clips)
 
     def __getitem__(self, idx):
-
         video_name, start = self._clips[idx]
 
         frames = self._frame_reader.load_frames_test(
             video_name, start, start + self._clip_len * self._stride, pad=True,
             stride=self._stride)
+        
+        target_labels = np.zeros(self._clip_len, dtype=np.int64)
+        
+        for event in self._labels_dict[video_name]:
+            event_frame = int(int(event['position']) / 1000 * FPS_SN)
+            label_idx = (event_frame - start) // self._stride
+
+            if 0 <= label_idx < self._clip_len:
+                label = self._class_dict[event['label']]
+                target_labels[label_idx] = label
 
         return {'video': video_name, 'start': start // self._stride,
-                'frame': frames}
+                'frame': frames, 'label': torch.from_numpy(target_labels)}
     
     @property
     def videos(self):

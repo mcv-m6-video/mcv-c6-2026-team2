@@ -10,6 +10,8 @@ from sklearn.metrics import average_precision_score
 import json
 import os
 from SoccerNet.Evaluation.ActionSpotting import average_mAP
+import torch
+import torch.nn.functional as F
 
 #Local imports
 from dataset.frame import FPS_SN
@@ -18,9 +20,14 @@ from dataset.frame import FPS_SN
 INFERENCE_BATCH_SIZE = 4
 INFERENCE_NUM_WORKERS = 4
 
+@torch.no_grad()
 def evaluate(model, dataset, batch_size=INFERENCE_BATCH_SIZE, num_workers=INFERENCE_NUM_WORKERS, nms_window = 5):
-    
     pred_dict = {}
+    total_loss = 0.0
+    num_batches = 0
+
+    weights = torch.tensor([1.0] + [5.0] * (model._num_classes), dtype=torch.float32).to(model.device)
+
     for video, video_len, _ in dataset.videos:
         pred_dict[video] = (
             np.zeros((video_len, len(dataset._class_dict)), np.float32), #scores matrix TxC (T with used stride)
@@ -30,8 +37,17 @@ def evaluate(model, dataset, batch_size=INFERENCE_BATCH_SIZE, num_workers=INFERE
             dataset, num_workers=num_workers, pin_memory=True,
             batch_size=batch_size
     )):
+        frames = clip['frame']
+        labels = clip['label'].to(model.device).long()
+
         # Batched by dataloader
-        batch_pred_scores = model.predict(clip['frame']) # remove background class
+        batch_pred_scores, logits = model.predict(frames) # remove background class
+        with torch.amp.autocast(model.device):
+            loss_logits = logits.view(-1, model._num_classes + 1)
+            loss_labels = labels.view(-1)
+            loss = F.cross_entropy(loss_logits, loss_labels, reduction='mean', weight=weights)
+            total_loss += loss.item()
+            num_batches += 1
 
         for i in range(clip['frame'].shape[0]):
             video = clip['video'][i]
@@ -91,12 +107,13 @@ def evaluate(model, dataset, batch_size=INFERENCE_BATCH_SIZE, num_workers=INFERE
                 closest_numpy[start:stop, c] = targets[indexes[i], c]
         closests_numpy.append(closest_numpy)
 
+    avg_loss = total_loss / num_batches
     # Compute the performances
     mAP, AP_per_class, _, _, _, _ = (
         average_mAP(targets_numpy, detections_numpy, closests_numpy, FPS_SN / dataset._stride, deltas=np.array([1]))
     )
 
-    return mAP, AP_per_class
+    return mAP, AP_per_class, avg_loss
 
 
 def apply_NMS(predictions, window, thresh=0.0):
