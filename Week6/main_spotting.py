@@ -19,7 +19,7 @@ from tabulate import tabulate
 from util.io import load_json, store_json
 from util.eval_spotting import evaluate
 from dataset.datasets import get_datasets
-from model.model_spotting import Model
+from model import get_model
 
 
 def get_args():
@@ -31,6 +31,7 @@ def get_args():
 
 def update_args(args, config):
     #Update arguments with config file
+    args.model_type = config['model_type']
     args.frame_dir = config['frame_dir']
     args.save_dir = config['save_dir'] + '/' + args.model # + '-' + str(args.seed) -> in case multiple seeds
     args.store_dir = config['save_dir'] + '/' + "splits"
@@ -50,6 +51,9 @@ def update_args(args, config):
     args.device = config['device']
     args.num_workers = config['num_workers']
 
+    # Optional
+    # args.patience = config.get('patience', None)
+
     return args
 
 def get_lr_scheduler(args, optimizer, num_steps_per_epoch):
@@ -62,6 +66,16 @@ def get_lr_scheduler(args, optimizer, num_steps_per_epoch):
         CosineAnnealingLR(optimizer,
             num_steps_per_epoch * cosine_epochs)])
 
+def compute_ap10(classes, ap_score, exclude=("FREE KICK", "GOAL")):
+    exclude = set(exclude)
+    ap10_scores = [
+        ap_score[i]
+        for i, class_name in enumerate(classes.keys())
+        if class_name not in exclude
+    ]
+    ap10 = float(np.mean(ap10_scores))
+
+    return ap10
 
 def main(args):
     # Set seed
@@ -78,7 +92,7 @@ def main(args):
     ckpt_dir = os.path.join(args.save_dir, 'checkpoints')
     os.makedirs(ckpt_dir, exist_ok=True)
 
-    # Get datasets train, validation (and validation for map -> Video dataset)
+    # Get datasets train, validation and test
     classes, train_data, val_data, test_data = get_datasets(args)
 
     if args.store_mode == 'store':
@@ -106,7 +120,7 @@ def main(args):
     )
 
     # Model
-    model = Model(args=args)
+    model = get_model(args=args)
 
     optimizer, scaler = model.get_optimizer({'lr': args.learning_rate})
 
@@ -165,10 +179,16 @@ def main(args):
     headers = ["Class", "Average Precision"]
     print(tabulate(table, headers, tablefmt="grid"))
 
-    # Report average results in table
-    avg_table = [["Mean", f"{map_score*100:.2f}"]]
-    headers = ["", "Average Precision"]
+    # Calculate AP10
+    ap10 = compute_ap10(classes, ap_score)
 
+    # Report averages
+    avg_table = [
+        ["AP10", f"{ap10*100:.2f}"],
+        ["AP12", f"{map_score*100:.2f}"]
+    ]
+
+    headers = ["Metric", "Average Precision"]
     print(tabulate(avg_table, headers, tablefmt="grid"))
     
     print('CORRECTLY FINISHED TRAINING AND INFERENCE')

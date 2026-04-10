@@ -16,8 +16,9 @@ from dataset.frame import FPS_SN
 
 #Constants
 INFERENCE_BATCH_SIZE = 4
+INFERENCE_NUM_WORKERS = 4
 
-def evaluate(model, dataset, batch_size=INFERENCE_BATCH_SIZE, nms_window = 5):
+def evaluate(model, dataset, batch_size=INFERENCE_BATCH_SIZE, num_workers=INFERENCE_NUM_WORKERS, nms_window = 5):
     
     pred_dict = {}
     for video, video_len, _ in dataset.videos:
@@ -26,7 +27,7 @@ def evaluate(model, dataset, batch_size=INFERENCE_BATCH_SIZE, nms_window = 5):
             np.zeros(video_len, np.int32)) #support matrix T
 
     for clip in tqdm(DataLoader(
-            dataset, num_workers=batch_size * 2, pin_memory=True,
+            dataset, num_workers=num_workers, pin_memory=True,
             batch_size=batch_size
     )):
         # Batched by dataloader
@@ -96,7 +97,6 @@ def evaluate(model, dataset, batch_size=INFERENCE_BATCH_SIZE, nms_window = 5):
     )
 
     return mAP, AP_per_class
-    
 
 
 def apply_NMS(predictions, window, thresh=0.0):

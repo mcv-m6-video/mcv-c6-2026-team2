@@ -2,6 +2,7 @@
 
 Here we describe the different parameters set in the baseline configuration file:
 
+- _model_type:_ Type of model to use.
 - _frame_dir:_ Directory where frames are stored.
 - _save_dir:_ Directory to save checkpoints, dataset information, etc.
 - _labels_dir:_ Directory where dataset labels are stored.
