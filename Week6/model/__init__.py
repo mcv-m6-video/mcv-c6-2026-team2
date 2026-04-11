@@ -1,14 +1,14 @@
 from .model_spotting import Model as BaselineModel
-from .model_spotting_lstm import Model as LSTMModel
+from .model_spotting_neck import Model as NeckModel
 from .model_spotting_x3d import Model as X3DModel
 
 def get_model(args):
     if args.model_type == "baseline":
         print("Using model: BASELINE")
         return BaselineModel(args)
-    elif args.model_type == "lstm":
-        print("Using model: LSTM")
-        return LSTMModel(args)
+    elif args.model_type in ["lstm", "gru"]:
+        print(f"Using model: {args.model_type.upper()}")
+        return NeckModel(args)
     elif args.model_type == "x3d":
         print("Using model: X3D")
         return X3DModel(args)

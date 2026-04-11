@@ -42,13 +42,24 @@ class Model(BaseRGBModel):
             self._features = features
 
             # LSTM Neck
-            self._lstm = nn.LSTM(
-                input_size=self._d,
-                hidden_size=self._d,
-                num_layers=1,
-                batch_first=True,
-                bidirectional=True
-            )
+            if args.model_type == "lstm":
+                self._neck = nn.LSTM(
+                    input_size=self._d,
+                    hidden_size=self._d,
+                    num_layers=1,
+                    batch_first=True,
+                    bidirectional=True
+                )
+            elif args.model_type == "gru":
+                self._neck = nn.GRU(
+                    input_size=self._d,
+                    hidden_size=self._d,
+                    num_layers=1,
+                    batch_first=True,
+                    bidirectional=True
+                )
+            else:
+                raise NotImplementedError(args._model_type)
 
             out_dim = self._d * 2
 
@@ -83,8 +94,8 @@ class Model(BaseRGBModel):
                 x.view(-1, channels, height, width)
             ).reshape(batch_size, clip_len, self._d) #B, T, D
 
-            # LSTM
-            im_feat, _ = self._lstm(im_feat) # B, T, (2)D
+            # LSTM / GRU
+            im_feat, _ = self._neck(im_feat) # B, T, (2)D
 
             #MLP
             im_feat = self._fc(im_feat) #B, T, num_classes+1
