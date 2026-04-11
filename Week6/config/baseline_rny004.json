@@ -17,5 +17,6 @@
     "warm_up_epochs": 3,
     "only_test": false,
     "device": "cuda",
-    "num_workers": 4
+    "num_workers": 4,
+    "patience": 5
 }
