@@ -1,5 +1,5 @@
 {
-    "model_type": "baseline",
+    "model_type": "lstm",
     "frame_dir": "data/soccernetball/extracted_frames/398x224",
     "save_dir": "data/soccernetball/save_data",
     "labels_dir": "data/soccernetball/SN-BAS-2025",
@@ -10,7 +10,7 @@
     "stride": 2,
     "dataset": "soccernetball",
     "epoch_num_frames": 500000,
-    "feature_arch": "rny004",
+    "feature_arch": "rny002",
     "learning_rate": 0.0008,
     "num_classes": 12,
     "num_epochs": 20,
