@@ -42,7 +42,7 @@ class Model(BaseRGBModel):
             self._features = features
 
             # LSTM Neck
-            if args.model_type == "lstm":
+            if args.model_type == "lstm_attn":
                 self._neck = nn.LSTM(
                     input_size=self._d,
                     hidden_size=self._d,
@@ -50,7 +50,7 @@ class Model(BaseRGBModel):
                     batch_first=True,
                     bidirectional=True
                 )
-            elif args.model_type == "gru":
+            elif args.model_type == "gru_attn":
                 self._neck = nn.GRU(
                     input_size=self._d,
                     hidden_size=self._d,
@@ -62,6 +62,12 @@ class Model(BaseRGBModel):
                 raise NotImplementedError(args.model_type)
 
             out_dim = self._d * 2
+
+            self._attn = nn.MultiheadAttention(
+                embed_dim=out_dim,
+                num_heads=4,
+                batch_first=True
+            )
 
             # MLP for classification
             self._fc = FCLayers(out_dim, args.num_classes+1) # +1 for background class (we now perform per-frame classification with softmax, therefore we have the extra background class)
@@ -96,6 +102,9 @@ class Model(BaseRGBModel):
 
             # LSTM / GRU
             im_feat, _ = self._neck(im_feat) # B, T, (2)D
+
+            # Multi Head Attention
+            im_feat, _ = self._attn(im_feat, im_feat, im_feat) # B, T (2)D
 
             #MLP
             im_feat = self._fc(im_feat) #B, T, num_classes+1
