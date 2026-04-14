@@ -21,8 +21,16 @@ INFERENCE_BATCH_SIZE = 4
 INFERENCE_NUM_WORKERS = 4
 
 @torch.no_grad()
-def evaluate(model, dataset, batch_size=INFERENCE_BATCH_SIZE, num_workers=INFERENCE_NUM_WORKERS, nms_window = 5):
+def collect_predictions_and_targets(
+    model,
+    dataset,
+    batch_size=INFERENCE_BATCH_SIZE,
+    num_workers=INFERENCE_NUM_WORKERS,
+    nms_window=5,
+    nms_threshold=0.05
+):
     pred_dict = {}
+    scores_nms_dict = {}
     total_loss = 0.0
     num_batches = 0
 
@@ -73,8 +81,9 @@ def evaluate(model, dataset, batch_size=INFERENCE_BATCH_SIZE, num_workers=INFERE
         scores, support = pred_dict[video]
         support[support == 0] = 1
         scores = scores / support[:, np.newaxis] # mean over support predictions
-        pred = apply_NMS(scores, nms_window, 0.05) # apply NMS
+        pred = apply_NMS(scores, nms_window, nms_threshold) # apply NMS
         detections_numpy.append(pred)
+        scores_nms_dict[video] = pred
 
     targets_numpy = list()
     closests_numpy = list()
@@ -108,9 +117,38 @@ def evaluate(model, dataset, batch_size=INFERENCE_BATCH_SIZE, num_workers=INFERE
         closests_numpy.append(closest_numpy)
 
     avg_loss = total_loss / num_batches
-    # Compute the performances
-    mAP, AP_per_class, _, _, _, _ = (
-        average_mAP(targets_numpy, detections_numpy, closests_numpy, FPS_SN / dataset._stride, deltas=np.array([1]))
+
+    return detections_numpy, targets_numpy, closests_numpy, avg_loss, scores_nms_dict
+
+def compute_map_from_predictions(detections_numpy, targets_numpy, closests_numpy, fps):
+    """
+    Compute mAP/AP from already collected detections and targets.
+    """
+    mAP, AP_per_class, _, _, _, _ = average_mAP(
+        targets_numpy,
+        detections_numpy,
+        closests_numpy,
+        fps,
+        deltas=np.array([1])
+    )
+    return mAP, AP_per_class
+
+@torch.no_grad()
+def evaluate(model, dataset, batch_size=INFERENCE_BATCH_SIZE, num_workers=INFERENCE_NUM_WORKERS, nms_window = 5):
+    detections_numpy, targets_numpy, closests_numpy, avg_loss, _ = collect_predictions_and_targets(
+        model=model,
+        dataset=dataset,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        nms_window=nms_window,
+        nms_threshold=0.05
+    )
+
+    mAP, AP_per_class = compute_map_from_predictions(
+        detections_numpy=detections_numpy,
+        targets_numpy=targets_numpy,
+        closests_numpy=closests_numpy,
+        fps=FPS_SN / dataset._stride
     )
 
     return mAP, AP_per_class, avg_loss
