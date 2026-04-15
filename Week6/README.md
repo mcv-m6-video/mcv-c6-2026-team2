@@ -1,40 +1,143 @@
-### Master in Computer Vision (Barcelona) 2025/26
-# Project 2 (Task 2) @ C6 - Video Analysis
+# Week 6: Ball Spotting Classification
 
-This repository provides the starter code for Task 2 of Project 2: Action spotting on the SoccerNet Ball Action Spotting 2025 (SN-BAS-2025) dataset.
+This document explains how the `Week6` folder is organized, how the spotting pipeline works, how to run experiments, and highlights our best-performing model.
 
-The installation of dependencies, how to obtain the dataset, and instructions on running the spotting baseline are detailed next.
+## Best Model Checkpoint
 
-## Dependencies
+Our best model checkpoint can be found here:  
+[checkpoint_best.pt](./best_checkpoint/checkpoint_best.pt)
 
-You can install the required packages for the project using the following command, with `requirements.txt` specifying the versions of the various packages:
+### Best Configuration
 
+The best results were obtained using:
+
+- **Model**: X3D-M + GRU (Bidirectional)
+- **Task**: Frame-level action spotting
+- **Key idea**: Combine strong spatiotemporal features (X3D-M) with temporal modeling (GRU)
+
+This model achieved the highest performance:
+
+- **AP10**: 44.34
+- **AP12** : 41.5
+
+Significantly improving over the baseline by better capturing temporal dependencies.
+
+## Dataset: SoccerNet
+We use the SoccerNet Ball Action Spotting dataset (SN-BAS-2025).
+
+- Contains soccer match videos annotated with temporal events
+- Each label includes:
+    - Action class (e.g., pass, shot, cross…)
+    - Timestamp (exact moment in the video)
+
+## Folder organization
+
+```text
+Week6/
+├── best_checkpoint/   # Best trained model (.pt) used for final evaluation and inference
+├── config/            # JSON configuration files defining each experiment setup
+├── data/              # Dataset metadata, splits, and dataset-specific instructions
+├── dataset/           # Data loading, clip sampling, and frame processing utilities
+├── model/             # Model architectures (baseline, RNNs, 3D CNNs, hybrids)
+├── notebooks/         # Notebooks for analysis, visualization, and debugging
+├── util/              # Evaluation (mAP), NMS, and general helper functions
+├── main_spotting.py   # Main script for training and evaluating spotting models
+├── inference.py       # Script for running inference and qualitative visualizations
+├── extract_frames_snb.py   # Extract frames from raw SoccerNet videos
+├── download_frames_snb.py  # Download pre-extracted frames from SoccerNet
+├── README.md          # Documentation for Week 6
+└── requirements.txt   # Python dependencies
 ```
+
+## Installation
+
+Install dependencies from inside `Week6`:
+
+```bash
+cd Week6
 pip install -r requirements.txt
 ```
 
-## Getting the dataset and data preparation
+## Data preparation
 
-Refer to the README files in the [data/soccernetball](/data/soccernetball) directory for instructions on how to download the SNABS2025 dataset, preparation of directories, and extraction of the video frames.
+Before training, make sure:
 
+- the SoccerNet Ball dataset has been downloaded,
+- the video frames have been extracted,
+- the paths inside your config file are correct,
+- and the split metadata has been generated at least once.
 
-## Running the baseline for Task 2
+Useful files:
 
-The `main_spotting.py` is designed to train and evaluate the baseline using the settings specified in a configuration file. You can run `main_spotting.py` using the following command:
+- `data/soccernetball/README.md`
+- `download_frames_snb.py`
+- `extract_frames_snb.py`
 
+## Pipeline
+1. Run `main_spotting.py --model <config_name>`
+2. Load configuration from `config/<config_name>.json`
+3. Extract clips (or reuse stored ones)
+4. Train model with frame-level supervision
+5. Apply Non-Maximum Suppression (NMS) during inference
+6. Evaluate using mAP with temporal tolerance
+
+## How to run
+### Train and evaluate an experiment
+
+```bash
+cd Week6
+python main_spotting.py --model <config_name>
 ```
-python3 main_spotting.py --model <model_name>
+
+Example:
+
+```bash
+cd Week6
+python main_spotting.py --model x3d_m_gru
 ```
 
-Here, `<model_name>` can be chosen freely but must match the name of a configuration file (e.g. `baseline.json`) located in the config directory [config](/config/). For example, to chose the baseline model, you would run: `python3 main_spotting.py --model baseline`.
+### Run inference from a saved checkpoint
 
-For additional details on configuration options using the configuration file, refer to the README in the [config](/config/) directory.
+```bash
+cd Week6
+python inference.py \
+  --model x3d_m_gru \
+  --checkpoint /path/to/checkpoint_best.pt
+```
 
-## Important notes
+### Save qualitative clips
 
-- Before running the model, ensure that you have downloaded the dataset frames and updated the directory-related configuration parameters in the relevant [config](/config/) files.
-- Make sure to run the `main_spotting.py` with the `mode` parameter set to `store` at least once to generate the clips and save them. After this initial run, you can set the `mode` to `load` to reuse the same clips in subsequent executions.
+```bash
+python inference.py \
+  --model x3d_m_gru \
+  --checkpoint /path/to/checkpoint_best.pt \
+  --save_qualitative \
+  --num_qualitative 10 \
+  --save_gif
+```
 
-## Support
+## Evaluation
+We report:
 
-For any issues related to the code, please email [aclapes@ub.edu](mailto:aclapes@ub.edu) and CC [arturxe@gmail.com](mailto:arturxe@gmail.com).
+* AP per class
+* AP10 (excluding rare classes: free kick, goal)
+* AP12 (all classes)
+
+Evaluation uses the official SoccerNet metric with 1-second tolerance.
+
+## Experiment Summary
+We explored multiple approaches:
+
+* Baseline (RegNet frame-based)
+* LSTM / GRU temporal models
+* Attention mechanisms
+* Transformer-based models
+* 3D CNNs (X3D)
+* Hybrid models (3D CNN + RNN)
+
+### Key Insights
+* Pure frame-based models perform poorly
+* Temporal modeling is crucial
+* Best results come from combining:
+    * Strong spatial encoder (X3D)
+    * Temporal modeling (GRU)

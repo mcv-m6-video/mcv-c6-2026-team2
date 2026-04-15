@@ -1,6 +1,6 @@
-# C6-Project: Road Traffic Monitoring (Team 2)
+# C6-Project: Road Traffic Monitoring and Human Action Recognition (Team 2)
 
-[Final Presentation](https://docs.google.com/presentation/d/1vMEpA82IR3UQMij1ftU_XvWKjbRAGzm5CiM_HfaHH64/edit?usp=sharing)   
+[Road Traffic Monitoring Final Presentation](https://docs.google.com/presentation/d/1vMEpA82IR3UQMij1ftU_XvWKjbRAGzm5CiM_HfaHH64/edit?usp=sharing)   
 
 ## Members
 - Lore Oregi Lauzirika
@@ -55,3 +55,9 @@ For a detailed explanation of the tasks, implementation steps, and experiments r
 In Week 5 of Module C6, we begin Project 2, focusing on Ball Action Classification (BAC) using the SoccerNet dataset. The objective of this task is to build and improve a multi-label video classification model capable of recognizing different ball-related actions in soccer matches. This serves as a first step toward the final goal of action spotting.
 
 For a detailed explanation of the tasks, implementation steps, and experiments refer to the dedicated [Week 5 README](./Week5/README.md).
+
+## Week 6: Ball Action Spotting
+
+In Week 6 of Module C6, we shift from action classification to the more challenging task of Ball Action Spotting, where the goal is to precisely localize actions in time within soccer videos. We start from a provided baseline model, reproduce its results, and explore improvements by incorporating temporal information.
+
+For a detailed explanation of the tasks, implementation steps, and experiments refer to the dedicated [Week 6 README](./Week6/README.md).
