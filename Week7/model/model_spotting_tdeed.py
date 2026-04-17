@@ -97,7 +97,7 @@ class Model(BaseRGBModel):
 
             #Croping in case of using it
             self.croping = args.crop_dim
-            if self.croping is not None:
+            if self.croping is not None and self.croping > 0:
                 self.cropT = T.RandomCrop((self.croping, self.croping))
                 self.cropI = T.CenterCrop((self.croping, self.croping))
             else:
