@@ -212,7 +212,7 @@ __marimo__/
 # Extras
 Data/
 dataset/
-!Week[5-6]/dataset/
+!Week[5-7]/dataset/
 datasets/
 
 .python-version
@@ -228,6 +228,6 @@ results
 wandb/
 
 # week5 data directories
-Week[5-6]/data/soccernetball/extracted_frames
-Week[5-6]/data/soccernetball/SN-BAS-2025
-Week[5-6]/data/soccernetball/save_data
+Week[5-7]/data/soccernetball/extracted_frames
+Week[5-7]/data/soccernetball/SN-BAS-2025
+Week[5-7]/data/soccernetball/save_data
