@@ -1,5 +1,5 @@
 {
-    "model_type": "baseline",
+    "model_type": "tdeed",
     "frame_dir": "data/soccernetball/extracted_frames/398x224",
     "save_dir": "data/soccernetball/save_data",
     "labels_dir": "data/soccernetball/SN-BAS-2025",
@@ -20,7 +20,7 @@
     "num_workers": 4,
     "patience": 5,
     "temporal_arch": "ed_sgp_mixer",
-    "radi_displacement": 4,
+    "radi_displacement": 0,
     "n_layers": 2,
     "sgp_ks": 9,
     "sgp_r": 4,

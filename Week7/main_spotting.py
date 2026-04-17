@@ -99,7 +99,7 @@ def main(args):
     os.makedirs(ckpt_dir, exist_ok=True)
 
     # Get datasets train, validation (and validation for map -> Video dataset)
-    classes, train_data, val_data, val_eval_data, test_data = get_datasets(args)
+    classes, train_data, val_eval_data, test_data = get_datasets(args)
 
     if args.store_mode == 'store':
         print('Datasets have been stored correctly! Re-run changing "mode" to "load" in the config JSON.')
@@ -113,13 +113,6 @@ def main(args):
     # Dataloaders
     train_loader = DataLoader(
         train_data, shuffle=False, batch_size=args.batch_size,
-        pin_memory=True, num_workers=args.num_workers,
-        prefetch_factor=(2 if args.num_workers > 0 else None),
-        worker_init_fn=worker_init_fn
-    )
-        
-    val_loader = DataLoader(
-        val_data, shuffle=False, batch_size=args.batch_size,
         pin_memory=True, num_workers=args.num_workers,
         prefetch_factor=(2 if args.num_workers > 0 else None),
         worker_init_fn=worker_init_fn
@@ -138,7 +131,6 @@ def main(args):
         
         losses = []
         best_ap10 = -float('inf')
-        # best_criterion = float('inf')
         epoch = 0
         epochs_no_improve = 0
 
@@ -148,8 +140,6 @@ def main(args):
             train_loss = model.epoch(
                 train_loader, optimizer, scaler,
                 lr_scheduler=lr_scheduler)
-            
-            # val_loss = model.epoch(val_loader)
 
             # Validation spotting metrics
             val_ap12, val_ap_score, val_loss = evaluate(model, val_eval_data, batch_size=args.batch_size, nms_window=5)

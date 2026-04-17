@@ -212,9 +212,8 @@ class Model(BaseRGBModel):
                 if 'labelD' in batch.keys():
                     labelD = batch['labelD'].to(self.device).float()
 
-                with torch.cuda.amp.autocast():
+                with torch.amp.autocast(self.device):
                     pred = self._model(frame)
-
                     if 'labelD' in batch.keys():
                         predD = pred['displ_feat']
                         pred = pred['im_feat']
