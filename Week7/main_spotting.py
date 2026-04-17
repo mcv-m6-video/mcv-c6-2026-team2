@@ -51,6 +51,7 @@ def update_args(args, config):
     args.device = config['device']
     args.num_workers = config['num_workers']
     args.patience = config['patience']
+    args.tolerance = config.get('tolerance', 1)
 
     # Optional for T-DEED-like model
     args.temporal_arch = config.get('temporal_arch', 'ed_sgp_mixer')
@@ -185,7 +186,7 @@ def main(args):
     model.load(torch.load(os.path.join(ckpt_dir, 'checkpoint_best.pt')))
 
     # Evaluation on test split
-    map_score, ap_score, _ = evaluate(model, test_data, nms_window = 5)
+    map_score, ap_score, _ = evaluate(model, test_data, nms_window = 5, tolerance=args.tolerance)
 
     # Report results per-class in table
     table = []

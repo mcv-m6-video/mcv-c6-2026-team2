@@ -36,7 +36,7 @@ class Model(BaseRGBModel):
             assert 'rny' in self._feature_arch, 'Only rny supported for now'
             
 
-            if self._feature_arch.startswith(('rny002', 'rny008')):
+            if self._feature_arch.startswith(('rny002', 'rny004', 'rny008')):
                 features = timm.create_model({
                     'rny002': 'regnety_002',
                     'rny008': 'regnety_008',

@@ -120,7 +120,7 @@ def collect_predictions_and_targets(
 
     return detections_numpy, targets_numpy, closests_numpy, avg_loss, scores_nms_dict
 
-def compute_map_from_predictions(detections_numpy, targets_numpy, closests_numpy, fps):
+def compute_map_from_predictions(detections_numpy, targets_numpy, closests_numpy, fps, tolerance=1):
     """
     Compute mAP/AP from already collected detections and targets.
     """
@@ -129,12 +129,12 @@ def compute_map_from_predictions(detections_numpy, targets_numpy, closests_numpy
         detections_numpy,
         closests_numpy,
         fps,
-        deltas=np.array([1])
+        deltas=np.array([tolerance])
     )
     return mAP, AP_per_class
 
 @torch.no_grad()
-def evaluate(model, dataset, batch_size=INFERENCE_BATCH_SIZE, num_workers=INFERENCE_NUM_WORKERS, nms_window = 5):
+def evaluate(model, dataset, batch_size=INFERENCE_BATCH_SIZE, num_workers=INFERENCE_NUM_WORKERS, nms_window = 5, tolerance = 1):
     detections_numpy, targets_numpy, closests_numpy, avg_loss, _ = collect_predictions_and_targets(
         model=model,
         dataset=dataset,
@@ -148,7 +148,8 @@ def evaluate(model, dataset, batch_size=INFERENCE_BATCH_SIZE, num_workers=INFERE
         detections_numpy=detections_numpy,
         targets_numpy=targets_numpy,
         closests_numpy=closests_numpy,
-        fps=FPS_SN / dataset._stride
+        fps=FPS_SN / dataset._stride,
+        tolerance=tolerance
     )
 
     return mAP, AP_per_class, avg_loss
