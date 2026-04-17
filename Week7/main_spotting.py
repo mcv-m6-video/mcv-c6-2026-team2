@@ -52,8 +52,13 @@ def update_args(args, config):
     args.num_workers = config['num_workers']
     args.patience = config['patience']
 
-    # Optional
-    # args.patience = config.get('patience', None)
+    # Optional for T-DEED-like model
+    args.temporal_arch = config.get('temporal_arch', 'ed_sgp_mixer')
+    args.radi_displacement = config.get('radi_displacement', 0)
+    args.n_layers = config.get('n_layers', 2)
+    args.sgp_ks = config.get('sgp_ks', 9)
+    args.sgp_r = config.get('sgp_r', 4)
+    args.crop_dim = config.get('crop_dim', -1)
 
     return args
 
