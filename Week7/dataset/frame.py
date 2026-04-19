@@ -41,7 +41,10 @@ class ActionSpotDataset(Dataset):
                                         # and end of videos
             dataset = 'soccernetball',     # Dataset name
             labels_dir = None,          # Directory with labels for SoccerNetBall
-            task = 'classification'     # Classification or localization
+            task = 'classification',    # Classification or localization
+            soft_labels=False,          # Whether to use soft gaussian labels 
+            soft_sigma=2.0,             # Gaussian sigma in frames
+
     ):
         self._src_file = game_file
         self._games = load_json(game_file)
@@ -64,6 +67,8 @@ class ActionSpotDataset(Dataset):
         self._labels_dir = labels_dir
         self._task = task
         assert task in ['classification', 'spotting']
+        self._soft_labels = soft_labels
+        self._soft_sigma = soft_sigma
 
         #Frame reader class
         self._frame_reader = FrameReader(frame_dir, dataset = dataset)
@@ -136,6 +141,36 @@ class ActionSpotDataset(Dataset):
             self._labels_store = pickle.load(f)
         print('Loaded clips from ' + store_path)
         return
+    
+    def _build_soft_labels(self, dict_label):
+        """
+        Build soft gaussian labels for TLGS.
+ 
+        For each event at frame t0, spreads probability to nearby frames
+        using a gaussian centered at t0 within ±soft_window frames.
+ 
+        Returns:
+            soft_labels: (T, num_classes) float32 array with values in [0, 1]
+                         0 = no event, 1 = event at exact frame
+        """
+        num_classes = len(self._class_dict)
+        T = self._clip_len
+        soft_labels = np.zeros((T, num_classes), dtype=np.float32)
+        soft_window = int(2 * self._soft_sigma)
+ 
+        for item in dict_label:
+            t0 = item['label_idx']
+            c = item['label'] - 1  # labels start at 1, convert to 0-indexed
+ 
+            # Only iterate within ±soft_window frames around the event
+            for delta in range(-soft_window, soft_window + 1):
+                t = t0 + delta
+                if 0 <= t < T:
+                    val = math.exp(-0.5 * (delta / self._soft_sigma) ** 2)
+                    # max in case two events of same class overlap in window
+                    soft_labels[t, c] = max(soft_labels[t, c], val)
+ 
+        return soft_labels
 
     def _get_one(self):
         #Get random index
@@ -150,9 +185,14 @@ class ActionSpotDataset(Dataset):
 
         #Process labels
         if self._task == 'spotting':
-            labels = np.zeros(self._clip_len, np.int64)
-            for label in dict_label:
-                labels[label['label_idx']] = label['label']
+            if self._soft_labels:
+                # TLGS: label is (T, num_classes) float32 with gaussian values
+                # used with BCE + sigmoid in the model
+                labels = self._build_soft_labels(dict_label)
+            else:
+                labels = np.zeros(self._clip_len, np.int64)
+                for label in dict_label:
+                    labels[label['label_idx']] = label['label']
 
         elif self._task == 'classification':
             labels = np.zeros(len(self._class_dict), np.int64) #C classes

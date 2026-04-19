@@ -1,5 +1,7 @@
 """
 T-DEED with X3D.
+Supports both hard labels (cross_entropy + softmax)
+and soft labels / TLGS (BCE + sigmoid) depending on config.
 """
 
 #Standard imports
@@ -32,6 +34,7 @@ class Model(BaseRGBModel):
             self._feature_arch = args.feature_arch
             self._temp_arch = args.temporal_arch
             self._radi_displacement = args.radi_displacement
+            self._soft_labels = args.soft_labels
             
             assert self._temp_arch in ['ed_sgp_mixer'], 'Only ed_sgp_mixer supported for now'
             
@@ -56,7 +59,12 @@ class Model(BaseRGBModel):
             
             if self._temp_arch == 'ed_sgp_mixer':
                 self._temp_fine = EDSGPMIXERLayers(feat_dim, args.clip_len, num_layers=args.n_layers, ks = args.sgp_ks, k = args.sgp_r, concat = True)
-                self._pred_fine = FCLayers(self._feat_dim, args.num_classes+1)
+                if self._soft_labels:
+                    # TLGS: no background class needed
+                    self._pred_fine = FCLayers(self._feat_dim, args.num_classes)
+                else:
+                    # Hard labels: +1 for background class
+                    self._pred_fine = FCLayers(self._feat_dim, args.num_classes + 1)
             else:
                 raise NotImplementedError(self._temp_arch)
             
@@ -118,7 +126,8 @@ class Model(BaseRGBModel):
                     return {'im_feat': im_feat, 'displ_feat': displ_feat}
                 im_feat = self._pred_fine(im_feat)
                 return im_feat
-            
+                # soft_labels=False → (B, T, num_classes+1) raw logits
+                # soft_labels=True  → (B, T, num_classes)   raw logits
             else:
                 raise NotImplementedError(self._temp_arch)
         
@@ -196,6 +205,7 @@ class Model(BaseRGBModel):
 
         self._model.to(self.device)
         self._num_classes = args.num_classes 
+        self._soft_labels = args.soft_labels
         self._model.print_stats(args.clip_len, self.device)
 
     def epoch(self, loader, optimizer=None, scaler=None, lr_scheduler=None):
@@ -208,7 +218,17 @@ class Model(BaseRGBModel):
             optimizer.zero_grad()
             self._model.train()
 
-        weights = torch.tensor([1.0] + [5.0] * (self._num_classes), dtype=torch.float32).to(self.device)
+        if self._soft_labels:
+            # BCE: pos_weight upweights action frames vs background frames
+            # equivalent to weight=[1, 5, 5,...] in cross_entropy
+            pos_weight = torch.tensor(
+                [5.0] * self._num_classes, dtype=torch.float32
+            ).to(self.device)
+        else:
+            # cross_entropy: background=1, action classes=5
+            weights = torch.tensor(
+                [1.0] + [5.0] * self._num_classes, dtype=torch.float32
+            ).to(self.device)
 
         epoch_loss = 0.
         with torch.no_grad() if optimizer is None else nullcontext():
@@ -227,10 +247,22 @@ class Model(BaseRGBModel):
                         predD = pred['displ_feat']
                         pred = pred['im_feat']
 
-                    pred = pred.view(-1, self._num_classes + 1) # B*T, num_classes
-                    label = label.view(-1) # B*T
-                    loss = F.cross_entropy(
-                            pred, label, reduction='mean', weight = weights) 
+                    if self._soft_labels:
+                        # pred:  (B, T, num_classes)  raw logits
+                        # label: (B, T, num_classes)  [0,1]
+                        loss = F.binary_cross_entropy_with_logits(
+                            pred,
+                            label,
+                            pos_weight=pos_weight
+                        )
+                    else:
+                        # pred:  (B, T, num_classes+1) raw logits
+                        # label: (B, T)                
+                        pred = pred.view(-1, self._num_classes + 1) # B*T, num_classes
+                        label = label.view(-1) # B*T
+                        loss = F.cross_entropy(
+                                pred, label, reduction='mean', weight = weights) 
+
                      
                     if 'labelD' in batch.keys():
                         lossD = F.mse_loss(predD, labelD, reduction = 'none')
@@ -267,6 +299,14 @@ class Model(BaseRGBModel):
                 return pred.cpu().numpy(), pred
 
             logits = pred
-            pred = torch.softmax(logits, dim=-1)
+ 
+            if self._soft_labels:
+                # sigmoid: each class independent, no background col
+                # returns (1, T, num_classes)
+                pred = torch.sigmoid(logits)
+            else:
+                # softmax: competing classes including background
+                # returns (1, T, num_classes+1)
+                pred = torch.softmax(logits, dim=-1)
             return pred.cpu().numpy(), logits
         
