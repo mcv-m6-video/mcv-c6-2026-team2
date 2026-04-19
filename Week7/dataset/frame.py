@@ -340,7 +340,9 @@ class ActionSpotVideoDataset(Dataset):
             pad_len=DEFAULT_PAD_LEN,
             dataset = 'soccernetball',
             labels_dir = None,
-            task = 'spotting'
+            task = 'spotting',
+            soft_labels=False,
+            soft_sigma=2.0
     ):
         self._src_file = game_file
         self._games = load_json(game_file)
@@ -359,6 +361,9 @@ class ActionSpotVideoDataset(Dataset):
         self._labels_dir = labels_dir
         self._task = task
         assert task == 'spotting'
+
+        self._soft_labels = soft_labels
+        self._soft_sigma = soft_sigma
 
         self._frame_reader = FrameReader(frame_dir, dataset = dataset)
 
@@ -380,6 +385,26 @@ class ActionSpotVideoDataset(Dataset):
             video = game['video']
             label_path = os.path.join(self._labels_dir, video, 'Labels-ball.json')
             self._labels_dict[video] = load_json(label_path)['annotations']
+    
+    def _build_soft_labels(self, video_name, start):
+        num_classes = len(self._class_dict)
+        T = self._clip_len
+        soft_labels = np.zeros((T, num_classes), dtype=np.float32)
+        soft_window = int(2 * self._soft_sigma)
+
+        for event in self._labels_dict[video_name]:
+            event_frame = int(int(event['position']) / 1000 * FPS_SN)
+            t0 = (event_frame - start) // self._stride
+
+            if 0 <= t0 < T:
+                c = self._class_dict[event['label']] - 1  # 0-indexed for soft labels
+                
+                for delta in range(-soft_window, soft_window + 1):
+                    t = t0 + delta
+                    if 0 <= t < T:
+                        val = math.exp(-0.5 * (delta / self._soft_sigma) ** 2)
+                        soft_labels[t, c] = max(soft_labels[t, c], val)
+        return soft_labels
 
     def __len__(self):
         return len(self._clips)
@@ -400,9 +425,20 @@ class ActionSpotVideoDataset(Dataset):
             if 0 <= label_idx < self._clip_len:
                 label = self._class_dict[event['label']]
                 target_labels[label_idx] = label
+        
+        ret = {
+            'video': video_name, 
+            'start': start // self._stride,
+            'frame': frames, 
+            'label': torch.from_numpy(target_labels) # Default is hard
+        }
 
-        return {'video': video_name, 'start': start // self._stride,
-                'frame': frames, 'label': torch.from_numpy(target_labels)}
+        if self._soft_labels:
+            soft = self._build_soft_labels(video_name, start)
+            ret['label'] = torch.from_numpy(soft)        # Used for loss
+            ret['label_hard'] = torch.from_numpy(target_labels) # Used for mAP
+
+        return ret
     
     @property
     def videos(self):

@@ -292,21 +292,31 @@ class Model(BaseRGBModel):
             with torch.amp.autocast(self.device):
                 pred = self._model(seq)
 
+            # Handle the displacement/im_feat dictionary logic
             if isinstance(pred, dict):
                 predD = pred['displ_feat']
-                pred = pred['im_feat']
-                pred = process_prediction(pred, predD)
-                return pred.cpu().numpy(), pred
+                pred_raw = pred['im_feat']
+                # Note: process_prediction might need to be aware of the 
+                # shape difference if it does post-processing
+                processed_pred = process_prediction(pred_raw, predD)
+                return processed_pred.cpu().numpy(), pred_raw
 
-            logits = pred
+            logits = pred # Shape: (1, T, C)
  
             if self._soft_labels:
-                # sigmoid: each class independent, no background col
-                # returns (1, T, num_classes)
-                pred = torch.sigmoid(logits)
+                # 1. Get probabilities for action classes
+                probs = torch.sigmoid(logits) # (1, T, num_classes)
+                
+                # 2. Synthesize background probability (Class 0)
+                # Background prob is high when all action probs are low
+                bg_prob = 1 - torch.max(probs, dim=-1, keepdim=True)[0]
+                
+                # 3. Concatenate to match (1, T, num_classes + 1) format
+                # Assuming background should be at index 0
+                pred = torch.cat([bg_prob, probs], dim=-1)
             else:
-                # softmax: competing classes including background
-                # returns (1, T, num_classes+1)
+                # Standard softmax including background
                 pred = torch.softmax(logits, dim=-1)
+
             return pred.cpu().numpy(), logits
         
