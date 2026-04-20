@@ -44,7 +44,7 @@ class ActionSpotDataset(Dataset):
             task = 'classification',    # Classification or localization
             soft_labels=False,          # Whether to use soft gaussian labels 
             soft_sigma=2.0,             # Gaussian sigma in frames
-
+            radi_displacement=0
     ):
         self._src_file = game_file
         self._games = load_json(game_file)
@@ -69,6 +69,7 @@ class ActionSpotDataset(Dataset):
         assert task in ['classification', 'spotting']
         self._soft_labels = soft_labels
         self._soft_sigma = soft_sigma
+        self._radi_displacement = radi_displacement
 
         #Frame reader class
         self._frame_reader = FrameReader(frame_dir, dataset = dataset)
@@ -90,6 +91,8 @@ class ActionSpotDataset(Dataset):
         #Initialize frame paths list
         self._frame_paths = []
         self._labels_store = []
+        if self._radi_displacement > 0:
+            self._labelsD_store = []
 
         for video in tqdm(self._games):
             video_len = int(video['num_frames'])
@@ -103,6 +106,8 @@ class ActionSpotDataset(Dataset):
                 frames_paths = self._frame_reader.load_paths(video['video'], base_idx, base_idx + self._clip_len * self._stride, stride=self._stride)
 
                 labels = []
+                if self._radi_displacement > 0:
+                    labelsD = []
 
                 for event in labels_file:
                     event_half = int(event['gameTime'][0])
@@ -110,17 +115,26 @@ class ActionSpotDataset(Dataset):
                         event_frame = int(int(event['position']) / 1000 * FPS_SN) #miliseconds to frames
                         label_idx = (event_frame - base_idx) // self._stride #position of event in clip
 
-                        if (label_idx >= 0 and label_idx < self._clip_len):
-                            label = self._class_dict[event['label']]
-                            labels.append({'label': label, 'label_idx': label_idx}) #add label and position to list (for both classification and location)
+                        if self._radi_displacement >= 0:
+                            if (label_idx >= -self._radi_displacement and label_idx < self._clip_len + self._radi_displacement):
+                                label = self._class_dict[event['label']]
+                                for i in range(max(0, label_idx - self._radi_displacement), min(self._clip_len, label_idx + self._radi_displacement + 1)):
+                                    labels.append({'label': label, 'label_idx': i})
+                                    labelsD.append({'displ': i - label_idx, 'label_idx': i})
+
+                        else:
+                            if (label_idx >= 0 and label_idx < self._clip_len):
+                                label = self._class_dict[event['label']]
+                                labels.append({'label': label, 'label_idx': label_idx}) #add label and position to list (for both classification and location)
 
                 if frames_paths[1] != -1: #in case no frames were available
-
                     self._frame_paths.append(frames_paths)
                     self._labels_store.append(labels)
+                    if self._radi_displacement > 0:
+                        self._labelsD_store.append(labelsD)
 
         #Save to store
-        store_path = os.path.join(self._store_dir, 'LEN' + str(self._clip_len) + 'SPLIT' + self._split) #store clips information of dataset with LEN and SPLIT information
+        store_path = os.path.join(self._store_dir, 'LEN' + str(self._clip_len) + 'DIS' + str(self._radi_displacement) + 'SPLIT' + self._split) #store clips information of dataset with LEN and SPLIT information
 
         if not os.path.exists(store_path):
             os.makedirs(store_path)
@@ -129,6 +143,9 @@ class ActionSpotDataset(Dataset):
             pickle.dump(self._frame_paths, f)
         with open(store_path + '/labels.pkl', 'wb') as f:
             pickle.dump(self._labels_store, f)
+        if self._radi_displacement > 0:
+            with open(store_path + '/labelsD.pkl', 'wb') as f:
+                pickle.dump(self._labelsD_store, f)
         print('Stored clips to ' + store_path)
         return
     
@@ -139,6 +156,9 @@ class ActionSpotDataset(Dataset):
             self._frame_paths = pickle.load(f)
         with open(store_path + '/labels.pkl', 'rb') as f:
             self._labels_store = pickle.load(f)
+        if self._radi_displacement > 0:
+            with open(store_path + '/labelsD.pkl', 'rb') as f:
+                self._labelsD_store = pickle.load(f)
         print('Loaded clips from ' + store_path)
         return
     
@@ -178,7 +198,9 @@ class ActionSpotDataset(Dataset):
 
         #Get frame_path and labels dict
         frames_path = self._frame_paths[idx]
-        dict_label = self._labels_store[idx]      
+        dict_label = self._labels_store[idx]
+        if self._radi_displacement > 0:
+            dict_labelD = self._labelsD_store[idx]
 
         #Load frames
         frames = self._frame_reader.load_frames(frames_path, pad=True, stride=self._stride)
@@ -193,6 +215,13 @@ class ActionSpotDataset(Dataset):
                 labels = np.zeros(self._clip_len, np.int64)
                 for label in dict_label:
                     labels[label['label_idx']] = label['label']
+                if self._radi_displacement > 0:
+                    labelsD = np.zeros(self._clip_len, np.int64)
+                    for label in dict_labelD:
+                        labelsD[label['label_idx']] = label['displ']
+                    
+                    return {'frame': frames, 'contains_event': int(np.sum(labels) > 0),
+                            'label': labels, 'labelD': labelsD}
 
         elif self._task == 'classification':
             labels = np.zeros(len(self._class_dict), np.int64) #C classes

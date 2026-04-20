@@ -28,7 +28,7 @@ def get_datasets(args):
 
     train_data = ActionSpotDataset(
         classes, os.path.join('data', args.dataset, 'train.json'),
-        args.frame_dir, args.store_dir, args.store_mode, args.clip_len, dataset_len, soft_labels=args.soft_labels, soft_sigma=args.soft_sigma, **dataset_kwargs)
+        args.frame_dir, args.store_dir, args.store_mode, args.clip_len, dataset_len, soft_labels=args.soft_labels, soft_sigma=args.soft_sigma, radi_displacement=args.radi_displacement, **dataset_kwargs)
     train_data.print_info()
 
     val_eval_data = ActionSpotVideoDataset(
