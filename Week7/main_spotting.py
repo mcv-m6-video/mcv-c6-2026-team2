@@ -61,6 +61,10 @@ def update_args(args, config):
     args.sgp_r = config.get('sgp_r', 4)
     args.crop_dim = config.get('crop_dim', -1)
 
+    # Optional for Soft Labels
+    args.soft_labels = config.get('soft_labels', False)
+    args.soft_sigma = config.get('soft_sigma', 2.0)
+
     return args
 
 def get_lr_scheduler(args, optimizer, num_steps_per_epoch):

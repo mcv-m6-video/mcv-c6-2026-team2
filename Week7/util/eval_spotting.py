@@ -27,14 +27,19 @@ def collect_predictions_and_targets(
     batch_size=INFERENCE_BATCH_SIZE,
     num_workers=INFERENCE_NUM_WORKERS,
     nms_window=5,
-    nms_threshold=0.05
+    nms_threshold=0.05,
 ):
     pred_dict = {}
     scores_nms_dict = {}
     total_loss = 0.0
     num_batches = 0
 
-    weights = torch.tensor([1.0] + [5.0] * (model._num_classes), dtype=torch.float32).to(model.device)
+    if model._soft_labels:
+        pos_weight = torch.tensor(
+            [5.0] * model._num_classes, dtype=torch.float32
+        ).to(model.device)
+    else:
+        weights = torch.tensor([1.0] + [5.0] * (model._num_classes), dtype=torch.float32).to(model.device)
 
     for video, video_len, _ in dataset.videos:
         pred_dict[video] = (
@@ -46,14 +51,18 @@ def collect_predictions_and_targets(
             batch_size=batch_size
     )):
         frames = clip['frame']
-        labels = clip['label'].to(model.device).long()
+        labels_for_loss = clip['label'].to(model.device)
+        labels_for_metrics = clip.get('label_hard', clip['label']).to(model.device).long()
 
         # Batched by dataloader
         batch_pred_scores, logits = model.predict(frames) # remove background class
         with torch.amp.autocast(model.device):
-            loss_logits = logits.view(-1, model._num_classes + 1)
-            loss_labels = labels.view(-1)
-            loss = F.cross_entropy(loss_logits, loss_labels, reduction='mean', weight=weights)
+            if model._soft_labels:
+                loss = F.binary_cross_entropy_with_logits(logits, labels_for_loss, pos_weight=pos_weight)
+            else:
+                loss_logits = logits.view(-1, model._num_classes + 1)
+                loss_labels = labels_for_loss.view(-1)
+                loss = F.cross_entropy(loss_logits, loss_labels, reduction='mean', weight=weights)
             total_loss += loss.item()
             num_batches += 1
 

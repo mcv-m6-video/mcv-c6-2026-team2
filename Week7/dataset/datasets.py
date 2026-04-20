@@ -21,25 +21,25 @@ def get_datasets(args):
     overlap = args.overlap if "overlap" in args else DEFAULT_OVERLAP
 
     dataset_kwargs = {
-        'stride': stride, 'overlap': overlap, 'dataset': args.dataset, 'labels_dir': args.labels_dir, 'task': args.task,
+        'stride': stride, 'overlap': overlap, 'dataset': args.dataset, 'labels_dir': args.labels_dir, 'task': args.task
     }
 
     print('Dataset size:', dataset_len)
 
     train_data = ActionSpotDataset(
         classes, os.path.join('data', args.dataset, 'train.json'),
-        args.frame_dir, args.store_dir, args.store_mode, args.clip_len, dataset_len, **dataset_kwargs)
+        args.frame_dir, args.store_dir, args.store_mode, args.clip_len, dataset_len, soft_labels=args.soft_labels, soft_sigma=args.soft_sigma, **dataset_kwargs)
     train_data.print_info()
 
     val_eval_data = ActionSpotVideoDataset(
         classes, os.path.join('data', args.dataset, 'val.json'),
-        args.frame_dir, args.clip_len, **dataset_kwargs)
+        args.frame_dir, args.clip_len, soft_labels=args.soft_labels, soft_sigma=args.soft_sigma, **dataset_kwargs)
     val_eval_data.print_info()  
 
     dataset_kwargs['overlap'] = 0
 
     test_data = ActionSpotVideoDataset(classes, os.path.join('data', args.dataset, 'test.json'),
-        args.frame_dir, args.clip_len, **dataset_kwargs)
+        args.frame_dir, args.clip_len, soft_labels=args.soft_labels, soft_sigma=args.soft_sigma, **dataset_kwargs)
     test_data.print_info()
         
     return classes, train_data, val_eval_data, test_data
