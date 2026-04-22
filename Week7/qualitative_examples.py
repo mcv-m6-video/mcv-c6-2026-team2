@@ -150,7 +150,7 @@ def main():
     idx_to_class = {v: k for k, v in classes.items()}
 
     model = get_model(args=args)
-    model._model.load_state_dict(torch.load(os.path.join(args.save_dir, 'checkpoints', 'checkpoint_best.pt'), map_location=model.device))
+    model._model.load_state_dict(torch.load(args.checkpoint, map_location=model.device))
     model._model.eval()
 
     indices = args.indices if args.indices else np.random.choice(len(dataset), args.num_random).tolist()
