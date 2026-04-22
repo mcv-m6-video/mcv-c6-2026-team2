@@ -1,7 +1,7 @@
 #!/bin/bash
 
 LOG_PATH=data/soccernetball/save_data
-MODELS=( "tdeed_rny2_coarse" "tdeed_rny8_coarse" "x3d_l_coarse" "x3d_l_gru_coarse" )
+MODELS=( "tdeed_x3d_s_radi2" "tdeed_x3d_s_radi4" )
 
 for MODEL in ${MODELS[@]}
 do

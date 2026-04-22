@@ -168,7 +168,7 @@ class Model(BaseRGBModel):
 
         self._model.to(self.device)
         self._num_classes = args.num_classes
-
+        self._soft_labels = args.soft_labels
         self._model.print_stats(args.clip_len, self.device)
 
     def epoch(self, loader, optimizer=None, scaler=None, lr_scheduler=None):

@@ -115,7 +115,7 @@ class ActionSpotDataset(Dataset):
                         event_frame = int(int(event['position']) / 1000 * FPS_SN) #miliseconds to frames
                         label_idx = (event_frame - base_idx) // self._stride #position of event in clip
 
-                        if self._radi_displacement >= 0:
+                        if self._radi_displacement > 0:
                             if (label_idx >= -self._radi_displacement and label_idx < self._clip_len + self._radi_displacement):
                                 label = self._class_dict[event['label']]
                                 for i in range(max(0, label_idx - self._radi_displacement), min(self._clip_len, label_idx + self._radi_displacement + 1)):
