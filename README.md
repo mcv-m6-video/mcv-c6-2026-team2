@@ -61,3 +61,11 @@ For a detailed explanation of the tasks, implementation steps, and experiments r
 In Week 6 of Module C6, we shift from action classification to the more challenging task of Ball Action Spotting, where the goal is to precisely localize actions in time within soccer videos. We start from a provided baseline model, reproduce its results, and explore improvements by incorporating temporal information.
 
 For a detailed explanation of the tasks, implementation steps, and experiments refer to the dedicated [Week 6 README](./Week6/README.md).
+
+# Week 7: Ball Action Spotting
+
+In Week 7 of Module C6, we continue working on Ball Action Spotting by exploring improvements to the baseline model.
+
+We experiment with different architectures that incorporate temporal aggregation and evaluate their impact on performance. Additionally, we analyze results under different temporal tolerances and compare models to better understand their behavior.
+
+For a detailed explanation of the tasks, implementation steps, and experiments refer to the dedicated [Week 7 README](./Week7/README.md).
