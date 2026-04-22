@@ -126,7 +126,7 @@ def render_expert_gif(frames, out_path, gt_labels, probs_raw, probs_nms, classes
         is_spot = np.max(current_nms) > 0
         is_gt = gt_labels[t] != 0
 
-        if is_spot or is_gt:
+        if is_gt:
             overlay = canvas.copy()
             cv2.rectangle(overlay, (200, HUD_HEIGHT+40), (600, HUD_HEIGHT+130), (30, 30, 30), -1)
             cv2.addWeighted(overlay, 0.8, canvas, 0.2, 0, canvas)
@@ -136,7 +136,7 @@ def render_expert_gif(frames, out_path, gt_labels, probs_raw, probs_nms, classes
             cv2.putText(canvas, msg, (230, HUD_HEIGHT+95), font, 1.1, color, 3)
 
         gif_frames.append(cv2.cvtColor(canvas, cv2.COLOR_BGR2RGB))
-        if is_spot or is_gt:
+        if is_gt:
             for _ in range(PAUSE_FRAMES): gif_frames.append(gif_frames[-1])
 
     imageio.mimsave(out_path, gif_frames, fps=6, loop=0)

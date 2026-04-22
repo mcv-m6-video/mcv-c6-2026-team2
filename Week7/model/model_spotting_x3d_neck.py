@@ -11,7 +11,7 @@ from contextlib import nullcontext
 from tqdm import tqdm
 import torch.nn.functional as F
 from thop import profile
-from pytorchvideo.models.hub import x3d_l
+from pytorchvideo.models.hub import x3d_l, x3d_m
 
 #Local imports
 from model.modules import BaseRGBModel, FCLayers, step
@@ -24,11 +24,14 @@ class Model(BaseRGBModel):
             super().__init__()
             self._feature_arch = args.feature_arch
 
-            if self._feature_arch == "x3d_l":
+            if self._feature_arch == "x3d_m":
+                features = x3d_m(pretrained=True)
+                feat_dim = 192
+            elif self._feature_arch == "x3d_l":
                 features = x3d_l(pretrained=True)
                 feat_dim = 192
             else:
-                raise NotImplementedError(args._feature_arch)
+                raise NotImplementedError(self._feature_arch)
 
             self._features = features
             self._d = feat_dim
