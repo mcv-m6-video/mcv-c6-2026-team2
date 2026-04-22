@@ -30,6 +30,7 @@ def get_args():
     parser.add_argument('--num_random', type=int, default=0)
     parser.add_argument('--output_dir', type=str, default='qualitative_results')
     parser.add_argument('--show_chart', action='store_true')
+    parser.add_argument('--soft', action='store_true')
     return parser.parse_args()
 
 def get_top_preds(probs, idx_to_class, top_k=2, threshold=SCORE_THRESH):
@@ -160,13 +161,15 @@ def main():
     for idx in indices:
         sample = dataset[idx]
         gt_labels = sample["label"].numpy()
+        if args.soft:
+            gt_labels = np.argmax(gt_labels, axis=1)
         
         # FILTRO DE CAOS 
         num_eventos = np.count_nonzero(gt_labels)
-        if num_eventos > 3 or num_eventos == 0:
+        if num_eventos > 7 or num_eventos == 0:
             print(f"Saltando clip {idx}: tiene {num_eventos} eventos (buscamos 1 o 2).")
             continue
-
+        
         probs_raw, _ = model.predict(sample["frame"])
         probs_raw = probs_raw[0]
         probs_nms = apply_NMS(probs_raw[:, 1:].copy(), window=NMS_WINDOW, thresh=SCORE_THRESH)
