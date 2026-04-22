@@ -1,4 +1,4 @@
-# Week 6: Ball Spotting Classification
+# Week 7: Ball Spotting Classification
 
 This document explains how the `Week7` folder is organized, how the spotting pipeline works, how to run experiments, and highlights our best-performing model.
 
