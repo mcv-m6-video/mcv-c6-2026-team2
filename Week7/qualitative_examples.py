@@ -30,7 +30,6 @@ def get_args():
     parser.add_argument('--num_random', type=int, default=0)
     parser.add_argument('--output_dir', type=str, default='qualitative_results')
     parser.add_argument('--show_chart', action='store_true')
-    parser.add_argument('--soft', action='store_true')
     return parser.parse_args()
 
 def get_top_preds(probs, idx_to_class, top_k=2, threshold=SCORE_THRESH):
@@ -146,7 +145,10 @@ def main():
     args = get_args()
     config = load_json(f"config/{args.model}.json")
     args = update_args(args, config)
-    classes, _, _, dataset = get_datasets(args)
+    args_dataset = get_args()
+    args_dataset = update_args(args_dataset, config)
+    args_dataset.soft_labels = False
+    classes, _, _, dataset = get_datasets(args_dataset)
     idx_to_class = {v: k for k, v in classes.items()}
 
     model = get_model(args=args)
@@ -161,12 +163,10 @@ def main():
     for idx in indices:
         sample = dataset[idx]
         gt_labels = sample["label"].numpy()
-        if args.soft:
-            gt_labels = np.argmax(gt_labels, axis=1)
         
         # FILTRO DE CAOS 
         num_eventos = np.count_nonzero(gt_labels)
-        if num_eventos > 7 or num_eventos == 0:
+        if num_eventos > 3 or num_eventos == 0:
             print(f"Saltando clip {idx}: tiene {num_eventos} eventos (buscamos 1 o 2).")
             continue
         
