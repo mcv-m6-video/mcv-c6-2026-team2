@@ -2,6 +2,8 @@
 
 [Road Traffic Monitoring Final Presentation](https://docs.google.com/presentation/d/1vMEpA82IR3UQMij1ftU_XvWKjbRAGzm5CiM_HfaHH64/edit?usp=sharing)   
 
+[Human Action Recognition Final Presentation](https://docs.google.com/presentation/d/1PTeINhYu1yE6Mp9UWuaQBvnFPjXwkU8yDoZAZRjj0Z0/edit?usp=sharing)
+
 ## Members
 - Lore Oregi Lauzirika
 - Júlia Garcia Torné
